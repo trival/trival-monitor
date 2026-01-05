@@ -1,14 +1,23 @@
 # Trival Monitor - Implementation Plan
 
 ## Overview
-Create a simplified monitoring solution where each monitored URL gets its own isolated Cloudflare Worker, addressing the limitations of uptimeflare's centralized architecture.
+
+Create a simplified monitoring solution where each monitored URL gets its own
+isolated Cloudflare Worker, addressing the limitations of uptimeflare's
+centralized architecture.
 
 ## Problems with Uptimeflare
-1. **Terraform hardcoded names**: Worker and D1 database names are hardcoded (`uptimeflare_worker`, `uptimeflare_d1`), limiting to one instance per Cloudflare account
-2. **Shared notification channel**: All monitors share a single notification configuration, can't have different email destinations per monitor
-3. **Over-engineered**: Status page, KV/D1 storage, complex state management - too much for simple ping monitoring
+
+1. **Terraform hardcoded names**: Worker and D1 database names are hardcoded
+   (`uptimeflare_worker`, `uptimeflare_d1`), limiting to one instance per
+   Cloudflare account
+2. **Shared notification channel**: All monitors share a single notification
+   configuration, can't have different email destinations per monitor
+3. **Over-engineered**: Status page, KV/D1 storage, complex state management -
+   too much for simple ping monitoring
 
 ## Requirements
+
 - One Cloudflare Worker per monitored URL
 - HTTP GET/POST ping monitoring only
 - SMTP email notifications (configurable per worker)
@@ -26,14 +35,18 @@ Create a simplified monitoring solution where each monitored URL gets its own is
 ## Key Decisions
 
 ### 1. Use D1 Instead of Durable Objects
+
 **Rationale**: User wants SQL analysis capability
+
 - Store health check history in D1 database
 - Each worker has its own D1 database instance
 - Enables direct SQL queries via wrangler CLI or dashboard
 - More suitable for analytics and historical analysis
 
 ### 2. Use Alchemy (No Terraform)
+
 **Decision**: Alchemy only for deployment
+
 - **Alchemy**: TypeScript-native IaC (Infrastructure as Code)
 - Resources are async functions - simple and type-safe
 - Local state files (no remote backend complexity)
@@ -41,7 +54,9 @@ Create a simplified monitoring solution where each monitored URL gets its own is
 - Skip Terraform entirely - simpler toolchain
 
 ### 3. Use Drizzle ORM for D1
+
 **Decision**: Drizzle ORM instead of raw SQL
+
 - Type-safe schema definitions
 - Native D1 support
 - Built-in migrations
@@ -49,14 +64,18 @@ Create a simplified monitoring solution where each monitored URL gets its own is
 - Easy to extend schema later
 
 ### 4. Use Bun Instead of Node/npm
+
 **Decision**: Bun for package management and runtime
+
 - Faster than npm/node
 - Native TypeScript support
 - Built-in bundler
 - Single tool for install/build/run
 
 ### 5. Implement Grace Period
+
 **From Uptimeflare pattern**: Don't alert on first failure
+
 - Store ALL health checks (successes and failures)
 - Track consecutive failures
 - Send notification only after N consecutive failures (configurable, default: 3)
@@ -64,18 +83,24 @@ Create a simplified monitoring solution where each monitored URL gets its own is
 - On recovery: Send UP notification immediately
 
 ### 6. Add Service Name Configuration
+
 **Why**: Generate meaningful notifications
+
 - ENV var: `SERVICE_NAME` (e.g., "Trival.xyz Website")
 - Used in email subjects and messages
 - Different from worker name (e.g., "monitor-trival-xyz")
 
 ### 7. No Dashboard/UI Complexity
-**Note**: Uptimeflare includes a complex Next.js dashboard coupled to the backend
+
+**Note**: Uptimeflare includes a complex Next.js dashboard coupled to the
+backend
+
 - We don't need any of that for this minimal proof of concept
 - Just worker + D1 + API endpoint
 - Separate aggregator/dashboard project will come later
 
 ## Tech Stack Summary
+
 - **Runtime**: Cloudflare Workers
 - **Database**: D1 with Drizzle ORM
 - **SMTP**: worker-mailer library
@@ -84,21 +109,17 @@ Create a simplified monitoring solution where each monitored URL gets its own is
 - **Language**: TypeScript
 
 ## Project Structure
+
 ```
 trival-monitor/
-├── shared/                    # Shared worker code (reusable)
-│   ├── src/
-│   │   ├── index.ts          # Entry point (scheduled + fetch handlers)
-│   │   ├── monitor.ts        # HTTP ping logic (from uptimeflare)
-│   │   ├── notifier.ts       # SMTP via worker-mailer
-│   │   ├── db/
-│   │   │   ├── schema.ts     # Drizzle schema definitions
-│   │   │   └── queries.ts    # Database query functions
-│   │   └── types.ts          # TypeScript interfaces
-│   ├── package.json
-│   ├── tsconfig.json
-│   ├── drizzle.config.ts     # Drizzle configuration
-│   └── README.md
+├── src/                       # Worker code
+│   ├── index.ts              # Entry point (scheduled + fetch handlers)
+│   ├── monitor.ts            # HTTP ping logic (from uptimeflare)
+│   ├── notifier.ts           # SMTP via worker-mailer
+│   ├── db/
+│   │   ├── schema.ts         # Drizzle schema definitions
+│   │   └── queries.ts        # Database query functions
+│   └── types.ts              # TypeScript interfaces
 ├── deployments/               # One folder per monitor instance
 │   └── trival-xyz/
 │       ├── deploy.ts         # Alchemy deployment script
@@ -106,7 +127,9 @@ trival-monitor/
 │       └── .env.example      # Environment variables template
 ├── scripts/
 │   └── new-monitor.sh        # Helper to scaffold new monitor
-├── package.json               # Root dependencies (Alchemy)
+├── package.json               # Dependencies (Alchemy, Drizzle, etc.)
+├── tsconfig.json             # TypeScript configuration
+├── drizzle.config.ts         # Drizzle configuration
 ├── bunfig.toml               # Bun configuration
 ├── .gitignore
 ├── implementation-plan.md     # This file
@@ -116,40 +139,47 @@ trival-monitor/
 ## Implementation Stages
 
 ### Stage 1: Project Skeleton & Toolchain Validation 🏗️
-**Goal**: Verify Alchemy, Drizzle, and Bun work together before building features
+
+**Goal**: Verify Alchemy, Drizzle, and Bun work together before building
+features
 
 #### 1.1 Initialize Project Structure
+
 - [x] Create root directory
 - [x] Write implementation-plan.md
-- [ ] Create root package.json with Bun workspaces
+- [ ] Create package.json with all dependencies
 - [ ] Create bunfig.toml
 - [ ] Create .gitignore
-- [ ] Create shared/package.json with minimal dependencies
+- [ ] Create tsconfig.json
 
 #### 1.2 Minimal Worker (Hello World)
-- [ ] Create `shared/src/index.ts` with simple fetch handler:
+
+- [ ] Create `src/index.ts` with simple fetch handler:
   ```typescript
   export default {
-    async fetch(request: Request): Promise<Response> {
-      return new Response('Hello from Trival Monitor!')
-    }
-  }
+  	async fetch(request: Request): Promise<Response> {
+  		return new Response("Hello from Trival Monitor!");
+  	},
+  };
   ```
-- [ ] Create `shared/tsconfig.json`
 
 #### 1.3 Minimal D1 + Drizzle Setup
-- [ ] Create `shared/src/db/schema.ts` with simple test table:
+
+- [ ] Create `src/db/schema.ts` with simple test table:
   ```typescript
-  export const testTable = sqliteTable('test', {
-    id: integer('id').primaryKey({ autoIncrement: true }),
-    message: text('message').notNull(),
-    createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(unixepoch())`)
-  })
+  export const testTable = sqliteTable("test", {
+  	id: integer("id").primaryKey({ autoIncrement: true }),
+  	message: text("message").notNull(),
+  	createdAt: integer("created_at", { mode: "timestamp" }).default(
+  		sql`(unixepoch())`
+  	),
+  });
   ```
-- [ ] Create `shared/src/db/client.ts` with Drizzle setup
-- [ ] Create `shared/drizzle.config.ts`
+- [ ] Create `src/db/queries.ts` with basic DB functions
+- [ ] Create `drizzle.config.ts` at root
 
 #### 1.4 Minimal Alchemy Deployment
+
 - [ ] Create `deployments/test/deploy.ts` with:
   - D1 database creation
   - Worker creation with D1 binding
@@ -158,28 +188,32 @@ trival-monitor/
 - [ ] Test local deployment: `cd deployments/test && bun run deploy.ts --dev`
 
 #### 1.5 Integration Test
-- [ ] Create `shared/src/index.test.ts` using Bun test:
+
+- [ ] Create `src/index.test.ts` using Bun test:
+
   ```typescript
-  import { describe, test, expect } from 'bun:test'
+  import { describe, test, expect } from "bun:test";
 
-  describe('Minimal Worker', () => {
-    test('responds with hello message', async () => {
-      // Test worker responds
-    })
+  describe("Minimal Worker", () => {
+  	test("responds with hello message", async () => {
+  		// Test worker responds
+  	});
 
-    test('can write to D1', async () => {
-      // Test D1 connection via Drizzle
-    })
+  	test("can write to D1", async () => {
+  		// Test D1 connection via Drizzle
+  	});
 
-    test('can read from D1', async () => {
-      // Test D1 query via Drizzle
-    })
-  })
+  	test("can read from D1", async () => {
+  		// Test D1 query via Drizzle
+  	});
+  });
   ```
-- [ ] Run tests: `cd shared && bun test`
+
+- [ ] Run tests: `bun test`
 - [ ] Verify all tests pass ✅
 
 **Success Criteria**:
+
 - Worker deploys locally with Alchemy
 - D1 database is created and accessible
 - Drizzle can read/write to D1
@@ -188,27 +222,32 @@ trival-monitor/
 ---
 
 ### Stage 2: Core Monitoring Logic 🔍
+
 **Goal**: Implement HTTP ping monitoring without notifications
 
 #### 2.1 Health Check Schema
+
 - [ ] Replace test table with `health_checks` table in schema.ts
-- [ ] Create Drizzle queries in `shared/src/db/queries.ts`:
+- [ ] Create Drizzle queries in `src/db/queries.ts`:
   - `saveHealthCheck()`
   - `getRecentChecks()`
   - `getConsecutiveFailures()` (grace period logic)
 
 #### 2.2 Monitor Logic
-- [ ] Create `shared/src/monitor.ts`
+
+- [ ] Create `src/monitor.ts`
 - [ ] Copy and adapt `checkTarget()` from uptimeflare
 - [ ] Add tests for monitoring logic
 
 #### 2.3 Types & Config Parser
-- [ ] Create `shared/src/types.ts`
+
+- [ ] Create `src/types.ts`
 - [ ] Implement `parseConfig()` for ENV vars
 - [ ] Add types for MonitorConfig, AppConfig
 
 #### 2.4 Worker with Scheduled Handler
-- [ ] Update `shared/src/index.ts` to add:
+
+- [ ] Update `src/index.ts` to add:
   - `scheduled()` handler
   - Health check execution
   - D1 storage of results
@@ -216,12 +255,14 @@ trival-monitor/
 - [ ] Add tests for scheduled logic
 
 #### 2.5 Stats API Endpoint
+
 - [ ] Implement `fetch()` handler for `/api/stats`
 - [ ] Add Bearer token authentication
 - [ ] Implement `get24hStats()` query
 - [ ] Add tests for API endpoint
 
 **Success Criteria**:
+
 - Health checks execute on schedule
 - Results stored in D1
 - Grace period logic works
@@ -231,28 +272,33 @@ trival-monitor/
 ---
 
 ### Stage 3: SMTP Notifications 📧
+
 **Goal**: Add email notifications with worker-mailer
 
 #### 3.1 SMTP Notifier
-- [ ] Install worker-mailer: `cd shared && bun add worker-mailer`
-- [ ] Create `shared/src/notifier.ts`
+
+- [ ] Install worker-mailer: `bun add worker-mailer`
+- [ ] Create `src/notifier.ts`
 - [ ] Implement `sendEmailNotification()`
 - [ ] Implement `formatMessage()` for plain text
 - [ ] Implement `convertToHtml()` for HTML emails
 
 #### 3.2 Integration with Worker
+
 - [ ] Add SMTP config to types
 - [ ] Wire up notifications in scheduled handler
 - [ ] Test DOWN notification (after grace period)
 - [ ] Test UP notification (immediate)
 
 #### 3.3 Test with Real SMTP
+
 - [ ] Configure test SMTP server (Mailtrap or similar)
 - [ ] Deploy and trigger test failure
 - [ ] Verify email received
 - [ ] Verify HTML formatting
 
 **Success Criteria**:
+
 - Emails sent on state changes
 - Grace period respected for DOWN alerts
 - UP alerts sent immediately
@@ -261,21 +307,25 @@ trival-monitor/
 ---
 
 ### Stage 4: Production Deployment Setup 🚀
+
 **Goal**: Create real deployment configuration and tooling
 
 #### 4.1 Real Deployment Config
+
 - [ ] Create `deployments/trival-xyz/deploy.ts`
 - [ ] Create `deployments/trival-xyz/.env.example`
 - [ ] Add all ENV vars (SMTP, target URL, grace period, etc.)
 - [ ] Update Drizzle config to point to real deployment
 
 #### 4.2 Scaffold Script
+
 - [ ] Create `scripts/new-monitor.sh`
 - [ ] Script generates new deployment from template
 - [ ] Make script executable: `chmod +x scripts/new-monitor.sh`
 - [ ] Test scaffold: `./scripts/new-monitor.sh test-monitor`
 
 #### 4.3 Documentation
+
 - [ ] Create root README.md
 - [ ] Document deployment workflow
 - [ ] Document environment variables
@@ -283,14 +333,16 @@ trival-monitor/
 - [ ] Add SQL query examples
 
 #### 4.4 Deploy First Real Monitor
+
 - [ ] Configure trival.xyz monitor
 - [ ] Deploy: `cd deployments/trival-xyz && bun run deploy.ts`
-- [ ] Apply migrations: `cd shared && bun run db:push`
+- [ ] Apply migrations: `bun run db:push`
 - [ ] Verify worker is running
 - [ ] Test API endpoint
 - [ ] Trigger test notification
 
 **Success Criteria**:
+
 - Real monitor deployed and running
 - Cron triggers working
 - Email notifications working
@@ -300,68 +352,134 @@ trival-monitor/
 ---
 
 ### Stage 5: Polish & Optimization ✨
+
 **Goal**: Clean up, optimize, and add nice-to-haves
 
 #### 5.1 Cleanup & Refactoring
+
 - [ ] Remove test deployment
 - [ ] Clean up old test code
 - [ ] Add JSDoc comments
 - [ ] Ensure consistent code style
 
 #### 5.2 Additional Features
-- [ ] Add `cleanupOldChecks()` for 90-day retention
+
 - [ ] Add support for custom HTTP headers
 - [ ] Add support for POST body
 - [ ] Add support for custom expected codes
 
 #### 5.3 Drizzle Studio
-- [ ] Test Drizzle Studio: `cd shared && bun run db:studio`
+
+- [ ] Test Drizzle Studio: `bun run db:studio`
 - [ ] Verify database browsing works
 - [ ] Document in README
 
 #### 5.4 Final Testing
+
 - [ ] Test multiple concurrent monitors
 - [ ] Test grace period edge cases
 - [ ] Load test with high-frequency checks
 - [ ] Verify 90-day cleanup works
 
 **Success Criteria**:
+
 - Code is clean and documented
 - All features working
 - Multiple monitors deployed
 - Performance acceptable
 
+---
+
+### Stage 6: POST-MVP Features 📅
+
+**Goal**: Add data retention and weekly reporting (implement after Stage 5)
+
+#### 6.1 6-Month Data Retention
+
+- [ ] Add `cleanupOldChecks()` function for 6-month retention
+  ```typescript
+  // Cleanup old checks (>6 months)
+  export async function cleanupOldChecks(db: ReturnType<typeof createDb>) {
+    const sixMonthsAgo = Date.now() - 180 * 24 * 60 * 60 * 1000
+    const result = await db
+      .delete(healthChecks)
+      .where(sql`${healthChecks.timestamp} < ${sixMonthsAgo}`)
+    return result
+  }
+  ```
+- [ ] Add ENV var: `DATA_RETENTION_DAYS` (default: 180)
+- [ ] Integrate cleanup into weekly report (run before generating report)
+- [ ] Add logging for cleanup actions (how many records deleted)
+- [ ] Document retention policy in README
+
+#### 6.2 Weekly Email Reports
+
+- [ ] Add `getWeeklyStats()` query function:
+  - Total checks in last 7 days
+  - Uptime percentage
+  - Average response time
+  - Total downtime minutes
+  - Number of incidents (consecutive failure groups)
+- [ ] Create `formatWeeklyReport()` in notifier.ts:
+  - Plain text format
+  - HTML email with charts/tables
+- [ ] Add new cron trigger for weekly reports:
+  - Default: `0 9 * * 1` (Monday 9 AM)
+  - Configurable via `WEEKLY_REPORT_SCHEDULE`
+- [ ] Add ENV var: `WEEKLY_REPORT_EMAIL` (optional, defaults to `NOTIFICATION_EMAIL`)
+- [ ] Combine weekly report with data cleanup:
+  1. Generate weekly stats
+  2. Send email report
+  3. Run `cleanupOldChecks()` to delete 6-month-old data
+  4. Log cleanup summary in report
+- [ ] Add option to disable weekly reports: `ENABLE_WEEKLY_REPORTS` (default: true)
+
+#### 6.3 Testing & Documentation
+
+- [ ] Test 6-month cleanup with mock old data
+- [ ] Test weekly report generation
+- [ ] Verify cleanup doesn't affect recent data
+- [ ] Document weekly report format in README
+- [ ] Add examples of weekly report output
+- [ ] Document data retention policy
+
+**Success Criteria**:
+
+- Old data (>6 months) is automatically cleaned up
+- Weekly reports sent on schedule with accurate stats
+- Cleanup runs together with weekly reports
+- Database size stays manageable over time
+- Reports are formatted nicely (plain text + HTML)
+
 ## Key Benefits vs Uptimeflare
 
-| Feature | Uptimeflare | Trival-Monitor |
-|---------|-------------|----------------|
-| **Instances per account** | 1 | Unlimited |
-| **Notification targets** | 1 for all | 1 per monitor |
-| **Deployment tool** | Terraform | Alchemy (TypeScript) |
-| **Dashboard** | Complex Next.js | None (API only) |
-| **Configuration** | TypeScript file | ENV vars |
-| **State management** | Complex grace periods | Simple up/down |
-| **Storage** | D1 (shared) | D1 (isolated) |
-| **Package manager** | npm | Bun |
-| **Database layer** | Raw SQL | Drizzle ORM |
+| Feature                   | Uptimeflare           | Trival-Monitor       |
+| ------------------------- | --------------------- | -------------------- |
+| **Instances per account** | 1                     | Unlimited            |
+| **Notification targets**  | 1 for all             | 1 per monitor        |
+| **Deployment tool**       | Terraform             | Alchemy (TypeScript) |
+| **Dashboard**             | Complex Next.js       | None (API only)      |
+| **Configuration**         | TypeScript file       | ENV vars             |
+| **State management**      | Complex grace periods | Simple up/down       |
+| **Storage**               | D1 (shared)           | D1 (isolated)        |
+| **Package manager**       | npm                   | Bun                  |
+| **Database layer**        | Raw SQL               | Drizzle ORM          |
 
 ## Deployment Workflow (Using Bun)
 
 ### Initial Setup (One Time)
+
 ```bash
 # 1. Initialize project with Bun
 cd trival-monitor
 bun install
 
-# 2. Install shared worker dependencies
-cd shared
-bun install
-
-# 3. Verify TypeScript setup
+# 2. Verify TypeScript setup
 bun run typecheck
 ```
 
 ### Deploy a New Monitor
+
 ```bash
 # 1. Use scaffold script
 ./scripts/new-monitor.sh trival-xyz
@@ -382,12 +500,14 @@ bun run db:push
 ### Query Statistics
 
 **Via API:**
+
 ```bash
 curl -H "Authorization: Bearer your-token" \
   https://monitor-trival-xyz.workers.dev/api/stats | jq
 ```
 
 **Via Drizzle Studio (GUI):**
+
 ```bash
 cd shared
 bun run db:studio
@@ -395,6 +515,7 @@ bun run db:studio
 ```
 
 **Via SQL (wrangler CLI):**
+
 ```bash
 wrangler d1 execute monitor_trival_xyz_d1 \
   --command "SELECT * FROM health_checks ORDER BY timestamp DESC LIMIT 10"
@@ -433,6 +554,7 @@ API_BEARER_TOKEN=random-secure-token-here
 ## Grace Period Behavior
 
 ### Scenario 1: Service Goes Down
+
 1. **10:00** - Check fails (consecutive failures: 1)
    - Action: Store failure, no notification
 2. **10:01** - Check fails (consecutive failures: 2)
@@ -443,16 +565,19 @@ API_BEARER_TOKEN=random-secure-token-here
    - Action: Store failure, no notification (already alerted)
 
 ### Scenario 2: Service Recovers
+
 1. **10:04** - Check succeeds
    - Action: Store success, **send UP notification immediately** ✉️
 
 ### Scenario 3: Transient Failures (No Alert)
+
 1. **10:00** - Check fails (consecutive failures: 1)
 2. **10:01** - Check fails (consecutive failures: 2)
 3. **10:02** - Check succeeds (consecutive failures: 0)
    - Action: No notification sent (grace period not met)
 
 ## Sources
+
 - [Alchemy GitHub](https://github.com/alchemy-run/alchemy)
 - [Alchemy D1 + Drizzle Guide](https://alchemy.run/guides/drizzle-d1/)
 - [Uptimeflare Repository](https://github.com/lyc8503/UptimeFlare)
@@ -461,9 +586,15 @@ API_BEARER_TOKEN=random-secure-token-here
 
 ## Next Steps
 
-After reading this plan, proceed with implementation:
-1. Create all root files (package.json, bunfig.toml, .gitignore)
-2. Set up shared/ directory with Drizzle schema
-3. Implement worker code
-4. Create deployment example
-5. Test with first monitor
+Proceed with Stage 1 implementation:
+
+1. ✅ Run `bun init` to initialize project
+2. Update package.json with dependencies
+3. Create bunfig.toml configuration
+4. Update .gitignore for Alchemy state files
+5. Create minimal worker in `src/index.ts`
+6. Set up Drizzle with test schema
+7. Create test deployment in `deployments/test/`
+8. Verify Alchemy + Drizzle + Bun integration works
+
+**Note**: POST-MVP features (6-month data retention and weekly reports) are documented in Stage 6.
