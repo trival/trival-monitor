@@ -1,0 +1,23 @@
+{
+  "name": "trival-monitor",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "types": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio"
+  },
+  "dependencies": {
+    "drizzle-orm": "0.45.1"
+  },
+  "devDependencies": {
+    "alchemy": "0.83.0",
+    "@cloudflare/workers-types": "4.20260103.0",
+    "@types/bun": "1.1.15",
+    "drizzle-kit": "0.31.8",
+    "typescript": "5.7.3"
+  }
+}
