@@ -1,5 +1,5 @@
-import { drizzle } from "drizzle-orm/d1";
 import { desc } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/d1";
 import { testTable } from "./schema";
 
 export function createDb(d1: D1Database) {

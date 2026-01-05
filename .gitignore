@@ -37,5 +37,3 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 .alchemy/
 */.alchemy/
 
-# Drizzle migrations
-drizzle/

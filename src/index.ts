@@ -1,4 +1,8 @@
-import { createDb, insertTestMessage, getRecentMessages } from "./db/queries";
+import {
+	createDb,
+	getRecentMessages,
+	insertTestMessage,
+} from "./db/queries";
 
 interface Env {
 	DB: D1Database;
@@ -21,6 +25,11 @@ export default {
 		if (url.pathname === "/messages") {
 			const messages = await getRecentMessages(db, 10);
 			return Response.json(messages);
+		}
+
+		// Return 404 for unknown routes
+		if (url.pathname !== "/") {
+			return new Response("Not Found", { status: 404 });
 		}
 
 		return new Response("Hello from Trival Monitor! Try /insert or /messages", {

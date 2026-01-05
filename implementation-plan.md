@@ -138,86 +138,94 @@ trival-monitor/
 
 ## Implementation Stages
 
-### Stage 1: Project Skeleton & Toolchain Validation 🏗️
+### Stage 1: Project Skeleton & Toolchain Validation ✅ COMPLETE
 
-**Goal**: Verify Alchemy, Drizzle, and Bun work together before building
-features
+**Goal**: Verify Alchemy, Drizzle, and Bun work together before building features
+
+**Status**: ✅ All tests passing - Stage 1 complete!
 
 #### 1.1 Initialize Project Structure
 
 - [x] Create root directory
 - [x] Write implementation-plan.md
-- [ ] Create package.json with all dependencies
-- [ ] Create bunfig.toml
-- [ ] Create .gitignore
-- [ ] Create tsconfig.json
+- [x] Create package.json with all dependencies (pinned versions)
+- [x] ~~Create bunfig.toml~~ (determined unnecessary)
+- [x] Create .gitignore (with Alchemy and Drizzle entries)
+- [x] Create tsconfig.json (configured for Cloudflare Workers)
+- [x] Create README.md with comprehensive documentation
 
 #### 1.2 Minimal Worker (Hello World)
 
-- [ ] Create `src/index.ts` with simple fetch handler:
-  ```typescript
-  export default {
-  	async fetch(request: Request): Promise<Response> {
-  		return new Response("Hello from Trival Monitor!");
-  	},
-  };
-  ```
+- [x] Create `src/index.ts` with fetch handler
+- [x] Add `/insert` endpoint for D1 write operations
+- [x] Add `/messages` endpoint for D1 read operations
+- [x] Add 404 handling for unknown routes
+- [x] Add automatic schema initialization on first request
 
 #### 1.3 Minimal D1 + Drizzle Setup
 
-- [ ] Create `src/db/schema.ts` with simple test table:
-  ```typescript
-  export const testTable = sqliteTable("test", {
-  	id: integer("id").primaryKey({ autoIncrement: true }),
-  	message: text("message").notNull(),
-  	createdAt: integer("created_at", { mode: "timestamp" }).default(
-  		sql`(unixepoch())`
-  	),
-  });
-  ```
-- [ ] Create `src/db/queries.ts` with basic DB functions
-- [ ] Create `drizzle.config.ts` at root
+- [x] Create `src/db/schema.ts` with test table
+- [x] Create `src/db/queries.ts` with CRUD functions:
+  - `createDb()` - Initialize Drizzle client
+  - `initSchema()` - Auto-create table if not exists
+  - `insertTestMessage()` - Insert test data
+  - `getRecentMessages()` - Query recent messages
+- [x] Create `drizzle.config.ts` at root
+- [x] Generate initial migration with `bun run db:generate`
 
 #### 1.4 Minimal Alchemy Deployment
 
-- [ ] Create `deployments/test/deploy.ts` with:
+- [x] Create `deployments/test/deploy.ts` with:
   - D1 database creation
   - Worker creation with D1 binding
-  - Minimal ENV vars
-- [ ] Create `deployments/test/.env.example`
-- [ ] Test local deployment: `cd deployments/test && bun run deploy.ts --dev`
+  - `local: true` for dev mode
+  - Absolute path resolution for entrypoint
+- [x] Create `deployments/test/.env.example`
+- [x] Test local deployment successfully
 
 #### 1.5 Integration Test
 
-- [ ] Create `src/index.test.ts` using Bun test:
+- [x] Create `deployments/test/deploy.test.ts` with Bun test
+- [x] Test root endpoint response
+- [x] Test D1 insert operations
+- [x] Test D1 query operations
+- [x] Test 404 handling for unknown routes
+- [x] Run tests: `bun run test:deploy`
+- [x] Verify all tests pass ✅
 
-  ```typescript
-  import { describe, test, expect } from "bun:test";
+**Test Results**:
+```
+✓ root endpoint responds with hello message
+✓ can insert a message to D1
+✓ can retrieve messages from D1
+✓ returns 404 for unknown routes
 
-  describe("Minimal Worker", () => {
-  	test("responds with hello message", async () => {
-  		// Test worker responds
-  	});
+4 pass, 0 fail, 15 expect() calls
+```
 
-  	test("can write to D1", async () => {
-  		// Test D1 connection via Drizzle
-  	});
+**Success Criteria**: ✅ ALL MET
 
-  	test("can read from D1", async () => {
-  		// Test D1 query via Drizzle
-  	});
-  });
-  ```
+- ✅ Worker deploys locally with Alchemy (`local: true`)
+- ✅ D1 database is created and accessible
+- ✅ Drizzle can read/write to D1
+- ✅ All tests pass (4/4 passing)
+- ✅ Automatic schema initialization works
+- ✅ Integration test framework established
 
-- [ ] Run tests: `bun test`
-- [ ] Verify all tests pass ✅
+**Key Learnings**:
+- Alchemy requires Cloudflare credentials even in local mode
+- Alchemy dev mode uses port 1337 (not 8787, but can vary to 1338)
+- `import.meta.dir` required for reliable path resolution in Alchemy
+- Bun test integration works seamlessly with Alchemy deployments
+- `nodejs_compat` compatibility flag added (required for worker_mailer in Stage 3)
+- Worker code kept clean without hardcoded SQL
 
-**Success Criteria**:
-
-- Worker deploys locally with Alchemy
-- D1 database is created and accessible
-- Drizzle can read/write to D1
-- All tests pass
+**Migration Strategy Note**:
+- Still exploring best approach for applying Drizzle migrations in local dev/test mode
+- Challenge: Alchemy's local D1 creates SQLite files dynamically on first database access
+- Goal: Use Drizzle's standard `migrate()` with Bun's SQLite driver before tests
+- `nodejs_compat` now available, which enables Node.js built-ins for `migrate()`
+- Setup script (`deployments/test/setup.ts`) framework in place for future solution
 
 ---
 
