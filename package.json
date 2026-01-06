@@ -5,8 +5,9 @@
 	"private": true,
 	"scripts": {
 		"types": "tsc --noEmit",
-		"test": "bun test",
-		"test:deploy": "bun test deployments/test/deploy.test.ts",
+		"test": "bun run test:unit && bun run test:integration",
+		"test:unit": "bun test ./src",
+		"test:integration": "bun test ./test",
 		"db:generate": "drizzle-kit generate",
 		"db:push": "drizzle-kit push",
 		"db:studio": "drizzle-kit studio"

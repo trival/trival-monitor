@@ -5,12 +5,17 @@ Cloudflare Worker with D1 database.
 
 ## Features
 
-- One Cloudflare Worker per monitored URL
-- HTTP GET/POST ping monitoring
-- SMTP email notifications (configurable per worker)
-- Statistics endpoint (protected by bearer token)
-- Grace period for transient failures
-- D1 database for historical analysis
+- **One Cloudflare Worker per monitored URL** - Isolated monitoring instances
+- **HTTP GET/POST ping monitoring** - Configurable timeout and expected status
+  codes
+- **Grace period logic** - Avoid alert fatigue from transient failures
+  (console.log only in Stage 2, SMTP in Stage 3)
+- **Bearer token authentication** - All API endpoints protected (including root
+  health check)
+- **Flexible statistics API** - Query 24h stats or custom time ranges
+- **Manual trigger endpoint** - Test monitoring without waiting for cron
+- **D1 database** - Persistent health check history for analysis
+- **2xx status code support** - Accepts any 200-299 status by default
 
 ## Tech Stack
 
@@ -28,15 +33,19 @@ trival-monitor/
 ├── src/                       # Worker code
 │   ├── index.ts              # Entry point (scheduled + fetch handlers)
 │   ├── monitor.ts            # HTTP ping logic
-│   ├── notifier.ts           # SMTP via worker-mailer
-│   ├── db/
-│   │   ├── schema.ts         # Drizzle schema definitions
-│   │   └── queries.ts        # Database query functions
-│   └── types.ts              # TypeScript interfaces
-├── deployments/               # One folder per monitor instance
-│   └── test/
-│       ├── deploy.ts         # Alchemy deployment script
-│       └── .env.example      # Environment variables template
+│   ├── config.ts             # Environment variable parser
+│   ├── types.ts              # TypeScript interfaces
+│   ├── config.test.ts        # Unit tests for config parsing
+│   └── db/
+│       ├── schema.ts         # Drizzle schema definitions
+│       └── queries.ts        # Database query functions
+├── test/                      # Integration tests
+│   ├── deploy.ts             # Test deployment (monitor + mock target)
+│   ├── integration.test.ts   # Comprehensive test suite
+│   └── fixtures/
+│       └── mock-target.ts    # Controllable test fixture worker
+├── deployments/               # Production monitor deployments (empty until Stage 4)
+├── drizzle/                   # Database migrations
 ├── package.json
 ├── tsconfig.json
 ├── drizzle.config.ts
@@ -70,10 +79,10 @@ bun run types
 
 ## Available Scripts
 
-- `bun run types` - Run TypeScript type checking (alias for `typecheck`)
-- `bun run typecheck` - Run TypeScript type checking
-- `bun test` - Run all tests
-- `bun run test:deploy` - Run deployment integration tests
+- `bun run types` - Run TypeScript type checking
+- `bun test` - Run all tests (unit + integration)
+- `bun run test:unit` - Run unit tests only (config parsing)
+- `bun run test:integration` - Run integration tests only
 - `bun run db:generate` - Generate Drizzle migrations
 - `bun run db:push` - Apply migrations to D1 database
 - `bun run db:studio` - Open Drizzle Studio (database GUI)
@@ -89,17 +98,19 @@ Alchemy provides built-in support for applying Drizzle migrations automatically:
 ```typescript
 // In deploy.ts
 const db = await D1Database("db", {
-  name: "monitor_test_d1",
-  migrationsDir: join(projectRoot, "drizzle"),
+	name: "monitor_test_d1",
+	migrationsDir: join(projectRoot, "drizzle"),
 });
 ```
 
 When you specify `migrationsDir`, Alchemy will:
+
 - Automatically apply all SQL migrations from the directory
 - Track applied migrations in Cloudflare's `d1_migrations` table
 - Work seamlessly in both local mode (`local: true`) and production deployments
 
 **Key Benefits**:
+
 - No manual migration steps needed
 - Migrations are applied during deployment
 - Same workflow for local development and production
@@ -122,17 +133,150 @@ for D1 production deployments.
 - [Alchemy D1 Database Documentation](https://alchemy.run/providers/cloudflare/d1-database/)
 - [Cloudflare D1 Local Development](https://developers.cloudflare.com/d1/build-with-d1/local-development/)
 
+## API Endpoints
+
+**All endpoints require bearer token authentication via
+`Authorization: Bearer <token>` header.**
+
+### `GET /`
+
+Service status endpoint. Returns monitor information and current status.
+
+**Response:**
+
+```json
+{
+	"service": "Test Service",
+	"target": "http://localhost:1337/",
+	"status": "up",
+	"lastCheck": 1704672000
+}
+```
+
+### `GET /stats`
+
+Get health check statistics. Defaults to 24-hour window.
+
+**Query Parameters:**
+
+- `start` (optional): Unix timestamp for start of time range
+- `end` (optional): Unix timestamp for end of time range
+
+**Response:**
+
+```json
+{
+	"totalChecks": 100,
+	"successfulChecks": 98,
+	"failedChecks": 2,
+	"uptimePercentage": 98.0,
+	"averageResponseTime": 45,
+	"currentStatus": "up",
+	"lastCheckTime": 1704672000,
+	"incidents": [
+		{
+			"startTime": 1704670000,
+			"endTime": 1704670120,
+			"duration": 2,
+			"errorMessage": "Timeout after 5000ms"
+		}
+	]
+}
+```
+
+### `POST /trigger-check`
+
+Manually trigger a health check (useful for testing without waiting for cron).
+
+**Response:**
+
+```json
+{
+	"success": true,
+	"result": {
+		"up": true,
+		"ping": 42,
+		"err": null,
+		"statusCode": 200,
+		"consecutiveFailures": 0
+	},
+	"message": "Check completed. Status: UP"
+}
+```
+
+## Environment Variables
+
+### Required
+
+- `TARGET_URL` - URL to monitor (e.g., `https://example.com`)
+- `API_BEARER_TOKEN` - Security token for API access
+
+### Optional (with defaults)
+
+- `SERVICE_NAME` - Display name (default: `"Service"`)
+- `HTTP_METHOD` - HTTP method (default: `"GET"`, also supports `"POST"`)
+- `PING_TIMEOUT` - Timeout in milliseconds (default: `10000`, range: 1-60000)
+- `GRACE_PERIOD_FAILURES` - Consecutive failures before alert (default: `3`,
+  range: 1-10)
+- `EXPECTED_CODES` - Accepted status codes (default: `"200-299"`, also supports
+  comma-separated like `"200,301,302"`)
+- `CHECK_INTERVAL_SECONDS` - Cron interval in seconds (default: `60`, range:
+  1-3600)
+- `HTTP_HEADERS` - Custom headers as JSON (optional, e.g.,
+  `'{"Authorization":"Bearer token"}'`)
+- `HTTP_BODY` - Request body for POST requests (optional)
+
+## Testing
+
+### Unit Tests
+
+```bash
+bun run test:unit
+```
+
+Tests configuration parsing, including:
+
+- Expected codes range parsing ("200-299")
+- Environment variable validation
+- Default value handling
+
+### Integration Tests
+
+```bash
+bun run test:integration
+```
+
+Comprehensive test suite with:
+
+- **Mock target worker** - Stateful test fixture with configurable behavior
+- **Bearer token authentication** - Verifies all endpoints are protected
+- **Grace period logic** - Tests consecutive failure tracking and reset
+- **2xx status code acceptance** - Verifies default range (200-299)
+- **Scheduled checks** - Tests automatic cron execution
+- **Stats API** - Validates data structure and custom time ranges
+
+The mock target worker (`test/fixtures/mock-target.ts`) supports:
+
+- **Configuration mode**: `POST /configure` with `{status, delay, message}` to
+  set persistent behavior
+- **Query parameter overrides**: One-time control via `?status=X&delay=Y`
+- **In-memory state**: Works in miniflare local mode without external
+  dependencies
+
 ## Development Workflow
 
-### Stage 1: Minimal Setup (Current)
+### Current Status: Stage 2 Complete ✅
 
-This stage validates that Alchemy, Drizzle, and Bun work together.
+Stage 2 implements core monitoring logic with:
 
-**Note**: The test deployment is configured with `local: true` to simulate
-resources locally where possible. This avoids deploying to production during
-development.
+- ✅ HTTP ping monitoring with timeout handling
+- ✅ Grace period logic (console.log only, SMTP in Stage 3)
+- ✅ Bearer token authentication on all endpoints
+- ✅ Statistics API with flexible time ranges
+- ✅ Manual trigger endpoint for testing
+- ✅ Comprehensive test suite (21 unit + 15 integration tests passing)
 
-#### Steps:
+### Running Tests
 
 1. **Type checking**:
 
@@ -140,47 +284,59 @@ development.
    bun run types
    ```
 
-2. **Run integration tests** (requires Cloudflare credentials):
+2. **Run all tests** (requires Cloudflare credentials):
 
    ```bash
-   # Make sure Cloudflare credentials are configured first
+   # Configure Cloudflare credentials first
    alchemy login cloudflare
 
-   # Run the tests
-   bun run test:deploy
+   # Run all tests
+   bun test
    ```
 
-   This test:
-
-   - Imports the deployment script directly (Alchemy is embeddable)
-   - Deploys the worker locally with `local: true` (no live deployment to Cloudflare)
-   - Automatically applies Drizzle migrations via Alchemy's `migrationsDir` option
-   - Exports `worker` and `db` resources for test access
-   - Dynamically uses the actual worker URL from `worker.url` (no hardcoded ports)
-   - Starts a local worker on port 1337 (or 1338+ if ports are busy)
-   - Uses local D1 simulation via Alchemy/Miniflare
-   - Tests all endpoints automatically
-   - Migrations are tracked in Cloudflare's `d1_migrations` table
-
-   **Note**: Even in local mode, Alchemy requires Cloudflare credentials to
-   initialize. The `local: true` setting prevents actual deployment to
-   Cloudflare but still needs auth for setup.
-
-3. **Manual deployment and testing** (alternative):
+3. **Manual testing** with local deployment:
 
    ```bash
-   cd deployments/test
+   cd test
    bun run deploy.ts
    ```
 
-   The deployment will automatically apply migrations. Then test manually:
+   Then test endpoints (bearer token required):
 
    ```bash
-   # Test endpoints (port may vary, check deployment output)
-   curl http://localhost:1337
-   curl http://localhost:1337/insert
-   curl http://localhost:1337/messages
+   # Service info
+   curl -H "Authorization: Bearer test-token-12345" http://localhost:1338/
+
+   # Get 24h statistics
+   curl -H "Authorization: Bearer test-token-12345" http://localhost:1338/stats
+
+   # Custom time range (last hour)
+   START=$(($(date +%s) - 3600))000
+   END=$(date +%s)000
+   curl -H "Authorization: Bearer test-token-12345" \
+     "http://localhost:1338/stats?start=$START&end=$END"
+
+   # Manual health check
+   curl -X POST -H "Authorization: Bearer test-token-12345" \
+     http://localhost:1338/trigger-check
+
+   # Test without auth (should return 401)
+   curl http://localhost:1338/
    ```
+
+### Grace Period Behavior
+
+The monitor tracks consecutive failures and only alerts after reaching the grace
+period threshold:
+
+1. **First failure** (10:00) → consecutiveFailures=1, no alert
+2. **Second failure** (10:01) → consecutiveFailures=2, no alert
+3. **Third failure** (10:02) → consecutiveFailures=3, **console.log alert** (if
+   GRACE_PERIOD_FAILURES=3)
+4. **Fourth failure** (10:03) → consecutiveFailures=4, no additional alert
+5. **Success** (10:04) → consecutiveFailures=0, **console.log recovery message**
+
+Stage 3 will replace console.log with SMTP email notifications.
 
 ## License
 

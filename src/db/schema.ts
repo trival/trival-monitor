@@ -1,13 +1,37 @@
-import { sqliteTable, integer, text } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
+import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
-export const testTable = sqliteTable("test", {
-	id: integer("id").primaryKey({ autoIncrement: true }),
-	message: text("message").notNull(),
-	createdAt: integer("created_at", { mode: "timestamp" }).default(
-		sql`(unixepoch())`
-	),
-});
+export const healthChecks = sqliteTable(
+	"health_checks",
+	{
+		id: integer("id").primaryKey({ autoIncrement: true }),
 
-export type TestRecord = typeof testTable.$inferSelect;
-export type NewTestRecord = typeof testTable.$inferInsert;
+		// Core check data
+		timestamp: integer("timestamp", { mode: "timestamp" })
+			.notNull()
+			.default(sql`(unixepoch())`),
+
+		up: integer("up", { mode: "boolean" }).notNull(), // true = success, false = failure
+		ping: integer("ping").notNull(), // Response time in milliseconds
+
+		// Error tracking
+		err: text("err"), // Error message if check failed, null if success
+
+		// HTTP details
+		statusCode: integer("status_code"), // HTTP status code (200, 500, etc.)
+
+		// Incident tracking (for grace period logic)
+		// Keep this field: makes grace period queries simpler
+		consecutiveFailures: integer("consecutive_failures").notNull().default(0),
+	},
+	(table) => ({
+		// Index for time-range queries (most common)
+		timestampIdx: index("timestamp_idx").on(table.timestamp),
+
+		// Index for finding recent consecutive failures
+		upTimestampIdx: index("up_timestamp_idx").on(table.up, table.timestamp),
+	})
+);
+
+export type HealthCheck = typeof healthChecks.$inferSelect;
+export type NewHealthCheck = typeof healthChecks.$inferInsert;
