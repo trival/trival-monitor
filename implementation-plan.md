@@ -245,51 +245,145 @@ trival-monitor/
 
 ### Stage 2: Core Monitoring Logic 🔍
 
-**Goal**: Implement HTTP ping monitoring without notifications
+**Goal**: Implement HTTP ping monitoring with grace period logic (console.log notifications only), bearer-token-protected API endpoints, and comprehensive integration tests.
 
-#### 2.1 Health Check Schema
+**Key Decisions**:
+- Tests moved to `test/` directory (deployments/ reserved for production)
+- All endpoints require bearer token (including root)
+- Default success codes: 2xx range (200-299)
+- Flattened API routes: `/`, `/stats`, `/trigger-check`
+- Configurable check interval via CHECK_INTERVAL_SECONDS
+- Mock target in reusable `test/fixtures/` directory
 
-- [ ] Replace test table with `health_checks` table in schema.ts
-- [ ] Create Drizzle queries in `src/db/queries.ts`:
-  - `saveHealthCheck()`
-  - `getRecentChecks()`
-  - `getConsecutiveFailures()` (grace period logic)
+#### 2.1 Types & Config (Foundation)
 
-#### 2.2 Monitor Logic
+- [ ] Create `src/types.ts` with interfaces:
+  - `Env` - Raw environment variables
+  - `MonitorConfig` - Parsed config (serviceName, targetUrl, httpMethod, pingTimeout, gracePeriodFailures, expectedCodes, checkIntervalSeconds)
+  - `AppConfig` - Full app config (monitor + apiBearerToken)
+  - `HealthCheckResult` - Check result with consecutiveFailures
+  - `Stats` - Statistics for any time range (not just 24h)
+  - `Incident` - Incident tracking
 
-- [ ] Create `src/monitor.ts`
-- [ ] Copy and adapt `checkTarget()` from uptimeflare
-- [ ] Add tests for monitoring logic
+- [ ] Create `src/config.ts` with `parseConfig()`:
+  - Validate TARGET_URL and API_BEARER_TOKEN (both REQUIRED)
+  - Parse numeric values (PING_TIMEOUT, GRACE_PERIOD_FAILURES, CHECK_INTERVAL_SECONDS)
+  - Set defaults: serviceName="Service", httpMethod="GET", pingTimeout=10000, gracePeriodFailures=3, expectedCodes=[200-299], checkIntervalSeconds=60
+  - Implement range parser for expectedCodes: "200-299" → [200,201,...,299]
+  - Validate ranges: timeout 1-60000ms, grace period 1-10, interval 1-3600s
 
-#### 2.3 Types & Config Parser
+#### 2.2 Database Schema
 
-- [ ] Create `src/types.ts`
-- [ ] Implement `parseConfig()` for ENV vars
-- [ ] Add types for MonitorConfig, AppConfig
+- [ ] Update `src/db/schema.ts`:
+  - Replace `testTable` with `healthChecks` table
+  - Fields: id, timestamp, up, ping, err, statusCode, consecutiveFailures
+  - Keep consecutiveFailures field (makes queries simpler - read most recent record vs scanning)
+  - Add indexes: `timestamp_idx`, `up_timestamp_idx`
 
-#### 2.4 Worker with Scheduled Handler
+- [ ] Generate migration: `bun run db:generate`
 
-- [ ] Update `src/index.ts` to add:
-  - `scheduled()` handler
-  - Health check execution
-  - D1 storage of results
-  - Grace period logic (no notification yet)
-- [ ] Add tests for scheduled logic
+#### 2.3 Monitor Logic
 
-#### 2.5 Stats API Endpoint
+- [ ] Create `src/monitor.ts` with `checkTarget()`:
+  - Use AbortController for timeout (uptimeflare pattern)
+  - Track response time from start to finish
+  - Validate status code against expectedCodes array (supports 2xx range)
+  - Handle timeout, network, and HTTP errors
+  - Return structured CheckResult: `{ up, ping, err, statusCode }`
 
-- [ ] Implement `fetch()` handler for `/api/stats`
-- [ ] Add Bearer token authentication
-- [ ] Implement `get24hStats()` query
-- [ ] Add tests for API endpoint
+#### 2.4 Database Queries
+
+- [ ] Update `src/db/queries.ts`:
+  - Replace test functions with monitoring queries
+  - `saveHealthCheck()` - Save check result to D1
+  - `getRecentChecks()` - Query recent checks (debugging)
+  - `getConsecutiveFailures()` - Count consecutive failures from most recent
+  - `getStats(startTime?, endTime?)` - Generalized stats with time range (defaults: now-24h to now)
+  - `calculateIncidents()` helper - Extract incident periods from checks
+
+#### 2.5 Mock Target Worker (Test Fixture)
+
+- [ ] Create `test/fixtures/mock-target.ts`:
+  - Controllable worker with query params: status, delay, message
+  - Defaults: status=200, delay=0, message="OK"
+  - Reusable across test suites
+  - Test independently before integration
+
+#### 2.6 Worker Implementation
+
+- [ ] Update `src/index.ts`:
+  - Remove old test endpoints (`/insert`, `/messages`)
+  - Add `scheduled()` handler:
+    - Parse config, create DB instance
+    - Call checkTarget()
+    - Get consecutiveFailures from DB
+    - Calculate new consecutiveFailures (reset on success, increment on failure)
+    - Save result with saveHealthCheck()
+    - Grace period logging: console.log on threshold and recovery
+  - Update `fetch()` handler with ALL PROTECTED endpoints:
+    - `GET /` - Service info (name, target, status) - PROTECTED
+    - `GET /stats` - 24h stats, optional ?start=X&end=Y - PROTECTED
+    - `POST /trigger-check` - Manual health check - PROTECTED
+    - 404 handler
+  - Bearer token auth on every endpoint (extract from Authorization header)
+
+#### 2.7 Test Infrastructure
+
+- [ ] Create `test/deploy.ts` (NEW LOCATION):
+  - Deploy mock target worker (from test/fixtures/mock-target.ts)
+  - Deploy monitor worker with bindings:
+    - TARGET_URL: mockTarget.url
+    - CHECK_INTERVAL_SECONDS: "1" (fast testing)
+    - API_BEARER_TOKEN: "test-token-12345"
+  - Dynamic cron schedule: `*/${CHECK_INTERVAL_SECONDS} * * * * *`
+  - Export both workers for test access
+
+- [ ] Update package.json: `test` script should run from test/ directory
+
+#### 2.8 Integration Tests
+
+- [ ] Create `test/integration.test.ts`:
+  - Test mock target controls (status, delay)
+  - Test bearer auth on all endpoints (/, /stats, /trigger-check)
+  - Test root endpoint returns service info
+  - Test manual trigger endpoint
+  - Test 2xx status code acceptance (200, 201, 299 → up; 300 → down)
+  - Test grace period consecutive failures (3 checks → console log)
+  - Test grace period reset on success (console log recovery)
+  - Test /stats API with valid data structure
+  - Test /stats with custom time range (?start=X&end=Y)
+  - Test scheduled checks run automatically (wait 2-3s, verify multiple checks)
+
+#### 2.9 Documentation
+
+- [ ] Update README.md:
+  - Document flattened API endpoints (/, /stats, /trigger-check)
+  - Add curl examples with bearer token
+  - Document new environment variables
+  - Update test commands (now in test/ directory)
+
+- [ ] Update implementation-plan.md:
+  - Mark Stage 2 complete
+  - Document key decisions made
+
+#### 2.10 Cleanup
+
+- [ ] Delete `deployments/test/` directory (old test location)
+- [ ] Keep `deployments/` empty for production monitors (Stage 4)
 
 **Success Criteria**:
 
-- Health checks execute on schedule
-- Results stored in D1
-- Grace period logic works
-- Stats API returns valid JSON
-- All tests pass
+✅ All TypeScript types compile
+✅ Database schema migrated (test → health_checks)
+✅ Monitor performs HTTP checks with timeout
+✅ Grace period tracks consecutive failures (console.log only)
+✅ All endpoints require bearer token (/, /stats, /trigger-check)
+✅ Mock target responds to control parameters
+✅ 11+ integration tests passing
+✅ Manual trigger works for deterministic testing
+✅ Scheduled checks run automatically (1s interval in tests)
+✅ Stats API returns accurate data for any time range
+✅ Documentation updated
 
 ---
 
