@@ -25,12 +25,11 @@ export const mockTarget = await Worker("mock-target", {
 });
 
 // Deploy MONITOR worker (the actual service)
-// Configure cron based on CHECK_INTERVAL_SECONDS
-const checkIntervalSeconds = parseInt(
-	process.env.CHECK_INTERVAL_SECONDS || "1",
-	10
-);
-const cronSchedule = `*/${checkIntervalSeconds} * * * * *`; // Cloudflare Workers extended cron format with seconds
+// Configure cron trigger - standard cron format (minute-level granularity)
+// Cloudflare Workers cron triggers use standard 5-field cron syntax
+const cronSchedule = "* * * * *"; // Every minute
+
+// Type-safe bindings that match our Env interface
 
 export const monitor = await Worker("monitor", {
 	name: "monitor-test-stage2",
@@ -41,19 +40,16 @@ export const monitor = await Worker("monitor", {
 	// Bindings
 	bindings: {
 		DB: db,
-		TARGET_URL: mockTarget.url, // Point to mock target (dynamic URL)
+		TARGET_URL: mockTarget.url!, // Point to mock target (dynamic URL)
 		SERVICE_NAME: "Test Service",
 		PING_TIMEOUT: "5000",
 		GRACE_PERIOD_FAILURES: "3",
 		API_BEARER_TOKEN: "test-token-12345",
 		HTTP_METHOD: "GET",
-		CHECK_INTERVAL_SECONDS: checkIntervalSeconds.toString(),
 	},
 
 	// Add cron trigger for scheduled checks
-	triggers: {
-		crons: [cronSchedule],
-	},
+	crons: [cronSchedule],
 });
 
 await app.finalize();
@@ -61,6 +57,4 @@ await app.finalize();
 console.log(`✅ Deployed monitor test (Stage 2)`);
 console.log(`🎯 Mock Target: ${mockTarget.url}`);
 console.log(`📊 Monitor: ${monitor.url}`);
-console.log(
-	`⏱️  Check Interval: ${checkIntervalSeconds}s (cron: ${cronSchedule})`
-);
+console.log(`⏱️  Cron Schedule: ${cronSchedule} (every minute)`);

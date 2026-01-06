@@ -30,6 +30,8 @@ export default {
 		env: Env,
 		ctx: ExecutionContext
 	): Promise<void> {
+		console.log("[SCHEDULED] Running scheduled health check");
+
 		const config = parseConfig(env);
 		const db = createDb(env.DB);
 
@@ -84,6 +86,8 @@ export default {
 	 * ALL endpoints require bearer token authentication
 	 */
 	async fetch(request: Request, env: Env): Promise<Response> {
+		console.log(`[HTTP] ${request.method} ${request.url}`);
+
 		const url = new URL(request.url);
 
 		// Parse config (may throw if required vars missing)

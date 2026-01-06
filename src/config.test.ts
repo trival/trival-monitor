@@ -17,7 +17,6 @@ describe("parseConfig", () => {
 		expect(config.monitor.httpMethod).toBe("GET");
 		expect(config.monitor.pingTimeout).toBe(10000);
 		expect(config.monitor.gracePeriodFailures).toBe(3);
-		expect(config.monitor.checkIntervalSeconds).toBe(60);
 		expect(config.apiBearerToken).toBe("test-token-123");
 	});
 
@@ -89,21 +88,15 @@ describe("parseConfig", () => {
 		);
 	});
 
-	test("parses CHECK_INTERVAL_SECONDS", () => {
-		const env = { ...baseEnv, CHECK_INTERVAL_SECONDS: "30" };
-		const config = parseConfig(env);
-		expect(config.monitor.checkIntervalSeconds).toBe(30);
-	});
-
-	test("throws error for invalid CHECK_INTERVAL_SECONDS", () => {
-		const env = { ...baseEnv, CHECK_INTERVAL_SECONDS: "0" };
+	test("throws error for invalid CHECK_INTERVAL_MINUTES", () => {
+		const env = { ...baseEnv, CHECK_INTERVAL_MINUTES: "0" };
 		expect(() => parseConfig(env)).toThrow(
-			"CHECK_INTERVAL_SECONDS must be between 1 and 3600 seconds"
+			"CHECK_INTERVAL_MINUTES must be between 1 and 60 minutes"
 		);
 
-		const env2 = { ...baseEnv, CHECK_INTERVAL_SECONDS: "4000" };
+		const env2 = { ...baseEnv, CHECK_INTERVAL_MINUTES: "100" };
 		expect(() => parseConfig(env2)).toThrow(
-			"CHECK_INTERVAL_SECONDS must be between 1 and 3600 seconds"
+			"CHECK_INTERVAL_MINUTES must be between 1 and 60 minutes"
 		);
 	});
 

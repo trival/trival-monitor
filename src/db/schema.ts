@@ -24,13 +24,13 @@ export const healthChecks = sqliteTable(
 		// Keep this field: makes grace period queries simpler
 		consecutiveFailures: integer("consecutive_failures").notNull().default(0),
 	},
-	(table) => ({
+	(table) => [
 		// Index for time-range queries (most common)
-		timestampIdx: index("timestamp_idx").on(table.timestamp),
+		index("timestamp_idx").on(table.timestamp),
 
 		// Index for finding recent consecutive failures
-		upTimestampIdx: index("up_timestamp_idx").on(table.up, table.timestamp),
-	})
+		index("up_timestamp_idx").on(table.up, table.timestamp),
+	]
 );
 
 export type HealthCheck = typeof healthChecks.$inferSelect;

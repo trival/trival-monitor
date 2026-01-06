@@ -38,7 +38,6 @@ export function parseConfig(env: Env): AppConfig {
 	// Parse numeric values
 	const pingTimeout = parseInt(env.PING_TIMEOUT || "10000", 10);
 	const gracePeriodFailures = parseInt(env.GRACE_PERIOD_FAILURES || "3", 10);
-	const checkIntervalSeconds = parseInt(env.CHECK_INTERVAL_SECONDS || "60", 10);
 
 	// Validate ping timeout
 	if (isNaN(pingTimeout) || pingTimeout <= 0 || pingTimeout > 60000) {
@@ -52,17 +51,6 @@ export function parseConfig(env: Env): AppConfig {
 		gracePeriodFailures > 10
 	) {
 		throw new Error("GRACE_PERIOD_FAILURES must be between 1 and 10");
-	}
-
-	// Validate check interval
-	if (
-		isNaN(checkIntervalSeconds) ||
-		checkIntervalSeconds < 1 ||
-		checkIntervalSeconds > 3600
-	) {
-		throw new Error(
-			"CHECK_INTERVAL_SECONDS must be between 1 and 3600 seconds"
-		);
 	}
 
 	// Parse HTTP method
@@ -89,7 +77,6 @@ export function parseConfig(env: Env): AppConfig {
 		httpMethod,
 		pingTimeout,
 		gracePeriodFailures,
-		checkIntervalSeconds,
 		expectedCodes,
 		headers,
 		body: env.HTTP_BODY,

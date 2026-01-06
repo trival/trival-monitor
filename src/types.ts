@@ -15,7 +15,6 @@ export interface Env {
 
 	// Timing configuration
 	PING_TIMEOUT?: string; // milliseconds as string
-	CHECK_INTERVAL_SECONDS?: string; // seconds as string
 
 	// Grace period
 	GRACE_PERIOD_FAILURES?: string; // number as string
@@ -38,7 +37,6 @@ export interface MonitorConfig {
 	httpMethod: "GET" | "POST";
 	pingTimeout: number; // milliseconds
 	gracePeriodFailures: number;
-	checkIntervalSeconds: number;
 	expectedCodes: number[]; // [200, 201, 202, ..., 299] or custom list
 	headers?: Record<string, string>;
 	body?: string;

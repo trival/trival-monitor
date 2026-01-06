@@ -1,7 +1,7 @@
-import { desc, gte } from "drizzle-orm";
+import { and, desc, gte, lte } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import type { HealthCheckResult, Incident, Stats } from "../types";
-import { healthChecks } from "./schema";
+import { HealthCheck, healthChecks } from "./schema";
 
 export function createDb(d1: D1Database) {
 	return drizzle(d1, { schema: { healthChecks } });
@@ -41,23 +41,14 @@ export async function getRecentChecks(db: DbInstance, limit = 10) {
  * This is crucial for grace period logic
  */
 export async function getConsecutiveFailures(db: DbInstance): Promise<number> {
-	// Get most recent checks, ordered by timestamp descending
-	const recentChecks = await db.query.healthChecks.findMany({
-		orderBy: [desc(healthChecks.timestamp)],
-		limit: 20, // Should be more than max grace period
-	});
+	// Get the most recent check - it has the consecutiveFailures count
+	const recentChecks = await getRecentChecks(db, 1);
 
-	// Count consecutive failures from most recent
-	let consecutiveFailures = 0;
-	for (const check of recentChecks) {
-		if (!check.up) {
-			consecutiveFailures++;
-		} else {
-			break; // Stop at first success
-		}
+	if (recentChecks.length === 0) {
+		return 0;
 	}
 
-	return consecutiveFailures;
+	return recentChecks[0].consecutiveFailures;
 }
 
 /**
@@ -73,14 +64,14 @@ export async function getStats(
 	const end = endTime || now;
 	const start = startTime || now - 24 * 60 * 60 * 1000; // 24 hours ago
 
-	// Get all checks in time range
-	const checks = await db.query.healthChecks.findMany({
-		where: gte(healthChecks.timestamp, new Date(start)),
+	// Get all checks in time range using both start and end conditions
+	const filteredChecks = await db.query.healthChecks.findMany({
+		where: and(
+			gte(healthChecks.timestamp, new Date(start)),
+			lte(healthChecks.timestamp, new Date(end))
+		),
 		orderBy: [desc(healthChecks.timestamp)],
 	});
-
-	// Filter by end time (Drizzle doesn't have lte for timestamp mode)
-	const filteredChecks = checks.filter((c) => c.timestamp.getTime() <= end);
 
 	if (filteredChecks.length === 0) {
 		return {
@@ -129,7 +120,7 @@ export async function getStats(
 /**
  * Helper function to extract incidents from checks
  */
-function calculateIncidents(checks: any[]): Incident[] {
+function calculateIncidents(checks: HealthCheck[]): Incident[] {
 	const incidents: Incident[] = [];
 	let currentIncident: Incident | null = null;
 
