@@ -6,9 +6,7 @@
 	"scripts": {
 		"types": "tsc --noEmit",
 		"test": "bun test",
-		"test:setup": "bun run deployments/test/setup.ts",
-		"test:run": "bun test deployments/test/deploy.test.ts",
-		"test:deploy": "bun run test:setup && bun run test:run",
+		"test:deploy": "bun test deployments/test/deploy.test.ts",
 		"db:generate": "drizzle-kit generate",
 		"db:push": "drizzle-kit push",
 		"db:studio": "drizzle-kit studio"

@@ -214,18 +214,32 @@ trival-monitor/
 
 **Key Learnings**:
 - Alchemy requires Cloudflare credentials even in local mode
-- Alchemy dev mode uses port 1337 (not 8787, but can vary to 1338)
+- Alchemy dev mode uses port 1337 (not 8787, but can vary to 1338+)
 - `import.meta.dir` required for reliable path resolution in Alchemy
 - Bun test integration works seamlessly with Alchemy deployments
 - `nodejs_compat` compatibility flag added (required for worker_mailer in Stage 3)
 - Worker code kept clean without hardcoded SQL
+- **Alchemy has built-in Drizzle migration support via `migrationsDir` option**
+- **Alchemy is embeddable - deployments can be directly imported in tests**
+- **Export resources (`worker`, `db`) from deployment for test access**
+- **Use `worker.url` for dynamic URL access (no hardcoded ports)**
 
-**Migration Strategy Note**:
-- Still exploring best approach for applying Drizzle migrations in local dev/test mode
-- Challenge: Alchemy's local D1 creates SQLite files dynamically on first database access
-- Goal: Use Drizzle's standard `migrate()` with Bun's SQLite driver before tests
-- `nodejs_compat` now available, which enables Node.js built-ins for `migrate()`
-- Setup script (`deployments/test/setup.ts`) framework in place for future solution
+**Migration Solution (SOLVED ✅)**:
+- Alchemy's D1Database accepts a `migrationsDir` parameter
+- Automatically applies all SQL migrations from the specified directory
+- Migrations are tracked in Cloudflare's `d1_migrations` table
+- Works seamlessly in both local mode and production
+- No manual migration steps needed - migrations apply during deployment
+- Integration tests can directly import and run deployments
+- References: https://alchemy.run/providers/cloudflare/d1-database/
+
+**Test Architecture (FINALIZED ✅)**:
+- Tests directly `import("./deploy")` instead of spawning processes
+- Deployment exports `worker` and `db` resources for test access
+- Tests use `deployment.worker.url` to get actual local/production URL
+- No hardcoded ports - works with whatever port Alchemy assigns
+- Clean separation: deployment script is reusable, tests are independent
+- Type-safe: TypeScript enforces proper resource access
 
 ---
 

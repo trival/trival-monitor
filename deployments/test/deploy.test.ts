@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeAll } from "bun:test";
+import { beforeAll, describe, expect, test } from "bun:test";
 
 interface TestMessage {
 	id: number;
@@ -10,15 +10,20 @@ describe("Test Deployment", () => {
 	let workerUrl: string;
 
 	beforeAll(async () => {
-		// Note: The setup.ts script should be run before these tests
-		// It handles deployment and migration application
+		// Import the deployment directly - this will execute it
+		// Alchemy is embeddable and designed to work in test environments
+		const deployment = await import("./deploy");
 
-		// Alchemy dev mode uses port 1337 by default
-		// Can be overridden with WORKER_URL environment variable
-		workerUrl = process.env.WORKER_URL || "http://localhost:1337";
+		// Get the actual worker URL from the deployment
+		// This works in both local mode (http://localhost:1337) and production
+		const url = deployment.worker.url;
+		if (!url) {
+			throw new Error("Worker URL is not available");
+		}
+		workerUrl = url;
 
-		// Give the deployment a moment to be ready
-		await new Promise((resolve) => setTimeout(resolve, 1000));
+		// Give the worker and database a moment to be fully ready
+		await new Promise((resolve) => setTimeout(resolve, 2000));
 	});
 
 	test("root endpoint responds with hello message", async () => {

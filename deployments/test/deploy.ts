@@ -1,5 +1,5 @@
 import alchemy from "alchemy";
-import { Worker, D1Database } from "alchemy/cloudflare";
+import { D1Database, Worker } from "alchemy/cloudflare";
 import { join } from "path";
 
 // Enable local mode for development testing
@@ -9,17 +9,19 @@ const app = await alchemy("monitor-test", {
 	local: true,
 });
 
-// Create D1 database
-export const db = await D1Database("db", {
-	name: "monitor_test_d1",
-});
-
-// Resolve the worker entrypoint path from the project root
+// Resolve paths from the project root
 const projectRoot = join(import.meta.dir, "../..");
 const workerEntrypoint = join(projectRoot, "src/index.ts");
+const migrationsDir = join(projectRoot, "drizzle");
+
+// Create D1 database with migrations
+export const db = await D1Database("db", {
+	name: "monitor_test_d1",
+	migrationsDir: migrationsDir,
+});
 
 // Create worker
-const worker = await Worker("worker", {
+export const worker = await Worker("worker", {
 	name: "monitor-test",
 	entrypoint: workerEntrypoint,
 	compatibilityDate: "2025-01-05",
@@ -35,8 +37,13 @@ const worker = await Worker("worker", {
 await app.finalize();
 
 console.log(`✅ Deployed test monitor: ${worker.name}`);
-console.log(`🌐 Worker URL: https://${worker.name}.workers.dev`);
 console.log(`🗄️ Database: ${db.name}`);
-console.log(`\nNext steps:`);
-console.log(`1. Apply D1 migrations: bun run db:push`);
-console.log(`2. Test the endpoint: curl https://${worker.name}.workers.dev`);
+
+// Log the actual URLs based on deployment mode
+if (app.local) {
+	// In local mode, Alchemy starts a dev server
+	console.log(`🌐 Local URL: ${worker.url}`);
+} else {
+	// In production mode, worker is deployed to Cloudflare
+	console.log(`🌐 Production URL: ${worker.url}`);
+}

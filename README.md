@@ -82,44 +82,45 @@ bun run types
 
 This project uses Drizzle ORM for database schema management.
 
-### Production Mode
+### Alchemy-Managed Migrations (Development/Test/Production)
 
-- Use `drizzle-kit push` to apply migrations via Cloudflare's D1 HTTP API
-- This follows
-  [Drizzle's recommended approach](https://orm.drizzle.team/docs/guides/d1-http-with-drizzle-kit)
-  for D1 production deployments
+Alchemy provides built-in support for applying Drizzle migrations automatically:
 
-### Development/Test Mode
+```typescript
+// In deploy.ts
+const db = await D1Database("db", {
+  name: "monitor_test_d1",
+  migrationsDir: join(projectRoot, "drizzle"),
+});
+```
 
-**Note**: We're currently exploring the best approach for applying Drizzle
-migrations in local development/test environments with Alchemy's local mode.
+When you specify `migrationsDir`, Alchemy will:
+- Automatically apply all SQL migrations from the directory
+- Track applied migrations in Cloudflare's `d1_migrations` table
+- Work seamlessly in both local mode (`local: true`) and production deployments
 
-The worker has `nodejs_compat` compatibility flag enabled (required for
-worker_mailer), which makes Node.js built-ins available. However, challenges
-remain:
+**Key Benefits**:
+- No manual migration steps needed
+- Migrations are applied during deployment
+- Same workflow for local development and production
+- Integration tests can directly import and run deployments
 
-- Migration files aren't bundled with the worker by default
-- Alchemy's local D1 (via Miniflare) creates SQLite files dynamically on first
-  database access
-- Miniflare stores data in `.alchemy/miniflare/v3/d1/` but file creation is
-  lazy
-- Need to determine the best point in the workflow to apply migrations
+### Alternative: Manual Migration with drizzle-kit
 
-**Potential Solutions to Explore**:
+For deployments without Alchemy, you can still use `drizzle-kit push`:
 
-- Configure Miniflare persistence options through Alchemy's local mode settings
-- Use wrangler's `--persist` flag equivalent in Alchemy
-- Pre-initialize D1 database before migration application
-- Use Drizzle's `migrate()` with proper timing after database file creation
+```bash
+bun run db:push
+```
 
-The goal is to use Drizzle's standard `migrate()` mechanism to apply migrations
-to Alchemy's local D1 database before running tests, while keeping the worker
-code clean without hardcoded SQL.
+This applies migrations via Cloudflare's D1 HTTP API, following
+[Drizzle's recommended approach](https://orm.drizzle.team/docs/guides/d1-http-with-drizzle-kit)
+for D1 production deployments.
 
 **References**:
 
+- [Alchemy D1 Database Documentation](https://alchemy.run/providers/cloudflare/d1-database/)
 - [Cloudflare D1 Local Development](https://developers.cloudflare.com/d1/build-with-d1/local-development/)
-- [Miniflare Persistence](https://www.npmjs.com/package/miniflare)
 
 ## Development Workflow
 
@@ -151,18 +152,19 @@ development.
 
    This test:
 
-   - Imports and runs the deployment script with `local: true`
-   - Deploys the worker locally (no live deployment to Cloudflare)
-   - Starts a local worker (port varies, typically 1337 or 1338)
+   - Imports the deployment script directly (Alchemy is embeddable)
+   - Deploys the worker locally with `local: true` (no live deployment to Cloudflare)
+   - Automatically applies Drizzle migrations via Alchemy's `migrationsDir` option
+   - Exports `worker` and `db` resources for test access
+   - Dynamically uses the actual worker URL from `worker.url` (no hardcoded ports)
+   - Starts a local worker on port 1337 (or 1338+ if ports are busy)
    - Uses local D1 simulation via Alchemy/Miniflare
    - Tests all endpoints automatically
+   - Migrations are tracked in Cloudflare's `d1_migrations` table
 
    **Note**: Even in local mode, Alchemy requires Cloudflare credentials to
    initialize. The `local: true` setting prevents actual deployment to
    Cloudflare but still needs auth for setup.
-
-   **Database migrations**: Currently exploring the best approach for applying
-   migrations in local mode. See "Database Migrations" section above.
 
 3. **Manual deployment and testing** (alternative):
 
@@ -171,20 +173,13 @@ development.
    bun run deploy.ts
    ```
 
-   Then test manually (after applying migrations):
+   The deployment will automatically apply migrations. Then test manually:
 
    ```bash
    # Test endpoints (port may vary, check deployment output)
    curl http://localhost:1337
    curl http://localhost:1337/insert
    curl http://localhost:1337/messages
-   ```
-
-4. **Apply database schema** (for production):
-
-   ```bash
-   # For production deployments, use drizzle-kit to apply migrations via D1 HTTP API
-   bun run db:push
    ```
 
 ## License
