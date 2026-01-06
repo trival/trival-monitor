@@ -23,7 +23,7 @@ describe("Test Deployment", () => {
 		workerUrl = url;
 
 		// Give the worker and database a moment to be fully ready
-		await new Promise((resolve) => setTimeout(resolve, 2000));
+		await new Promise((resolve) => setTimeout(resolve, 200));
 	});
 
 	test("root endpoint responds with hello message", async () => {
