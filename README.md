@@ -102,7 +102,7 @@ Alchemy provides built-in support for applying Drizzle migrations automatically:
 // In deploy.ts
 const db = await D1Database('db', {
   name: 'monitor_test_d1',
-  migrationsDir: join(projectRoot, 'drizzle'),
+  migrationsDir: join(projectRoot, 'migrations'),
 })
 ```
 

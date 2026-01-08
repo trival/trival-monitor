@@ -9,7 +9,7 @@ const app = await alchemy('monitor-test-stage2', {
 
 // Resolve paths
 const projectRoot = join(import.meta.dir, '..')
-const migrationsDir = join(projectRoot, 'drizzle')
+const migrationsDir = join(projectRoot, 'migrations')
 
 // Create D1 database with migrations
 export const db = await D1Database('db', {

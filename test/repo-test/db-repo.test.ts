@@ -14,7 +14,7 @@ describe('Db Repo in Worker', () => {
 
     // Resolve paths
     const projectRoot = join(import.meta.dir, '../..')
-    const migrationsDir = join(projectRoot, 'drizzle')
+    const migrationsDir = join(projectRoot, 'migrations')
 
     // Create D1 database with migrations
     const db = await D1Database('repo_test_db', {
