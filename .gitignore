@@ -35,5 +35,9 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 
 # Alchemy state files
 .alchemy/
+.claude
 */.alchemy/
+
+# IMPORTANT: Don't commit your deployment configurations
+deployments/
 
