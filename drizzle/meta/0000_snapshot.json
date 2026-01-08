@@ -62,17 +62,12 @@
       "indexes": {
         "timestamp_idx": {
           "name": "timestamp_idx",
-          "columns": [
-            "timestamp"
-          ],
+          "columns": ["timestamp"],
           "isUnique": false
         },
         "up_timestamp_idx": {
           "name": "up_timestamp_idx",
-          "columns": [
-            "up",
-            "timestamp"
-          ],
+          "columns": ["up", "timestamp"],
           "isUnique": false
         }
       },

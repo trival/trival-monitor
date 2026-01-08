@@ -243,7 +243,9 @@ describe('parseConfig', () => {
         SMTP_PASS: 'password123',
         NOTIFICATION_EMAIL: 'alerts@example.com',
       }
-      expect(() => parseConfig(env)).toThrow('SMTP_PORT must be between 1 and 65535')
+      expect(() => parseConfig(env)).toThrow(
+        'SMTP_PORT must be between 1 and 65535',
+      )
     })
 
     test('throws error for SMTP_PORT above 65535', () => {
@@ -255,7 +257,9 @@ describe('parseConfig', () => {
         SMTP_PASS: 'password123',
         NOTIFICATION_EMAIL: 'alerts@example.com',
       }
-      expect(() => parseConfig(env)).toThrow('SMTP_PORT must be between 1 and 65535')
+      expect(() => parseConfig(env)).toThrow(
+        'SMTP_PORT must be between 1 and 65535',
+      )
     })
   })
 })
