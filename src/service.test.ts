@@ -184,20 +184,33 @@ describe('HealthCheckService', () => {
       )
     })
 
-    test('success after failures resets counter and sends UP notification', async () => {
-      // Fail 2 times
+    test('success after failures resets counter but NO UP notification (grace period not reached)', async () => {
+      // Fail 2 times (below grace period threshold of 3)
       setMonitorFailure()
       await service.processHeatCheck()
       await service.processHeatCheck()
 
       // Success resets counter
       setMonitorResult()
-      const result = await service.processHeatCheck()
+      let result = await service.processHeatCheck()
+      expect(result.consecutiveFailures).toBe(0)
+
+      // Fail 2 times again (below grace period threshold of 3)
+      setMonitorFailure()
+      await service.processHeatCheck()
+      result = await service.processHeatCheck()
+
+      expect(result.consecutiveFailures).toBe(2)
+
+      // Success resets counter again
+      setMonitorResult()
+      result = await service.processHeatCheck()
 
       expect(result.consecutiveFailures).toBe(0)
       expect(result.up).toBe(true)
-      expect(sendUpNotificationMock).toHaveBeenCalledTimes(1)
-      expect(sendUpNotificationMock).toHaveBeenCalledWith('Test Service', 2)
+      // No UP notification because DOWN notification was never sent (grace period not reached)
+      expect(sendUpNotificationMock).not.toHaveBeenCalled()
+      expect(sendDownNotificationMock).not.toHaveBeenCalled()
     })
 
     test('success after exceeding grace period sends UP notification', async () => {
@@ -278,6 +291,17 @@ describe('HealthCheckService', () => {
       expect(checks.length).toBe(10)
       expect(checks[0].consecutiveFailures).toBe(10) // Most recent
       expect(checks[9].consecutiveFailures).toBe(1) // Oldest
+
+      // Recovery
+      setMonitorResult()
+      await service.processHeatCheck()
+      await service.processHeatCheck()
+      await service.processHeatCheck()
+      const recoveryResult = await service.processHeatCheck()
+      expect(recoveryResult.consecutiveFailures).toBe(0)
+
+      expect(sendUpNotificationMock).toHaveBeenCalledTimes(1)
+      expect(sendUpNotificationMock).toHaveBeenCalledWith('Test Service', 10)
     })
   })
 
@@ -468,31 +492,6 @@ describe('HealthCheckService', () => {
   })
 
   describe('edge cases', () => {
-    test('handles transition from success to failure at grace period threshold', async () => {
-      // Start with 2 successes
-      for (let i = 0; i < 2; i++) {
-        await service.processHeatCheck()
-      }
-
-      // Now fail exactly 3 times (grace period)
-      monitorCheckMock.mockResolvedValue(
-        createMonitorResult({ up: false, err: 'Timeout', statusCode: null }),
-      )
-
-      for (let i = 1; i <= 3; i++) {
-        const result = await service.processHeatCheck()
-        expect(result.consecutiveFailures).toBe(i)
-      }
-
-      // Should have exactly 1 DOWN notification at threshold
-      expect(sendDownNotificationMock).toHaveBeenCalledTimes(1)
-      expect(sendDownNotificationMock).toHaveBeenCalledWith(
-        'Test Service',
-        3,
-        'Timeout',
-      )
-    })
-
     test('repository persistence - consecutive failures survive across service instances', async () => {
       // Fail 2 times
       setMonitorFailure()

@@ -51,7 +51,12 @@ export const createHealthCheckService = ({
             checkResult.err,
           )
         })
-      } else if (checkResult.up && consecutiveFailures > 0) {
+      } else if (
+        checkResult.up &&
+        consecutiveFailures >= config.monitor.gracePeriodFailures
+      ) {
+        // Only send UP notification if DOWN notification was previously sent
+        // (i.e., consecutive failures reached grace period threshold)
         notificationHandlers.forEach(async (handler) => {
           await handler.sendUpNotification(
             config.monitor.serviceName,
