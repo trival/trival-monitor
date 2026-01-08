@@ -9,13 +9,16 @@ Cloudflare Worker with D1 database.
 - **HTTP GET/POST ping monitoring** - Configurable timeout and expected status
   codes
 - **Grace period logic** - Avoid alert fatigue from transient failures
-  (console.log only in Stage 2, SMTP in Stage 3)
+- **Email notifications** - Optional SMTP support with styled HTML emails
+  (DOWN/UP alerts)
 - **Bearer token authentication** - All API endpoints protected (including root
   health check)
 - **Flexible statistics API** - Query 24h stats or custom time ranges
 - **Manual trigger endpoint** - Test monitoring without waiting for cron
 - **D1 database** - Persistent health check history for analysis
 - **2xx status code support** - Accepts any 200-299 status by default
+- **Multiple notification channels** - Console logging + optional SMTP (easily
+  extensible)
 
 ## Tech Stack
 
@@ -97,10 +100,10 @@ Alchemy provides built-in support for applying Drizzle migrations automatically:
 
 ```typescript
 // In deploy.ts
-const db = await D1Database("db", {
-	name: "monitor_test_d1",
-	migrationsDir: join(projectRoot, "drizzle"),
-});
+const db = await D1Database('db', {
+  name: 'monitor_test_d1',
+  migrationsDir: join(projectRoot, 'drizzle'),
+})
 ```
 
 When you specify `migrationsDir`, Alchemy will:
@@ -146,10 +149,10 @@ Service status endpoint. Returns monitor information and current status.
 
 ```json
 {
-	"service": "Test Service",
-	"target": "http://localhost:1337/",
-	"status": "up",
-	"lastCheck": 1704672000
+  "service": "Test Service",
+  "target": "http://localhost:1337/",
+  "status": "up",
+  "lastCheck": 1704672000
 }
 ```
 
@@ -166,21 +169,21 @@ Get health check statistics. Defaults to 24-hour window.
 
 ```json
 {
-	"totalChecks": 100,
-	"successfulChecks": 98,
-	"failedChecks": 2,
-	"uptimePercentage": 98.0,
-	"averageResponseTime": 45,
-	"currentStatus": "up",
-	"lastCheckTime": 1704672000,
-	"incidents": [
-		{
-			"startTime": 1704670000,
-			"endTime": 1704670120,
-			"duration": 2,
-			"errorMessage": "Timeout after 5000ms"
-		}
-	]
+  "totalChecks": 100,
+  "successfulChecks": 98,
+  "failedChecks": 2,
+  "uptimePercentage": 98.0,
+  "averageResponseTime": 45,
+  "currentStatus": "up",
+  "lastCheckTime": 1704672000,
+  "incidents": [
+    {
+      "startTime": 1704670000,
+      "endTime": 1704670120,
+      "duration": 2,
+      "errorMessage": "Timeout after 5000ms"
+    }
+  ]
 }
 ```
 
@@ -192,15 +195,15 @@ Manually trigger a health check (useful for testing without waiting for cron).
 
 ```json
 {
-	"success": true,
-	"result": {
-		"up": true,
-		"ping": 42,
-		"err": null,
-		"statusCode": 200,
-		"consecutiveFailures": 0
-	},
-	"message": "Check completed. Status: UP"
+  "success": true,
+  "result": {
+    "up": true,
+    "ping": 42,
+    "err": null,
+    "statusCode": 200,
+    "consecutiveFailures": 0
+  },
+  "message": "Check completed. Status: UP"
 }
 ```
 
@@ -211,7 +214,7 @@ Manually trigger a health check (useful for testing without waiting for cron).
 - `TARGET_URL` - URL to monitor (e.g., `https://example.com`)
 - `API_BEARER_TOKEN` - Security token for API access
 
-### Optional (with defaults)
+### Monitoring Configuration (optional, with defaults)
 
 - `SERVICE_NAME` - Display name (default: `"Service"`)
 - `HTTP_METHOD` - HTTP method (default: `"GET"`, also supports `"POST"`)
@@ -225,6 +228,88 @@ Manually trigger a health check (useful for testing without waiting for cron).
 - `HTTP_HEADERS` - Custom headers as JSON (optional, e.g.,
   `'{"Authorization":"Bearer token"}'`)
 - `HTTP_BODY` - Request body for POST requests (optional)
+
+### SMTP Configuration (optional, for email notifications)
+
+Email notifications are **completely optional**. The monitor works without SMTP
+configuration and will only log to console.
+
+When you want to enable email notifications, configure all of these variables:
+
+- `SMTP_HOST` - SMTP server hostname (e.g., `smtp.gmail.com`)
+- `SMTP_USER` - SMTP username (usually your email address)
+- `SMTP_PASS` - SMTP password or app-specific password
+- `NOTIFICATION_EMAIL` - Email address to receive alerts
+- `SMTP_PORT` - SMTP server port (optional, default: `587`)
+- `NOTIFICATION_EMAIL_FROM` - From email address (optional, defaults to
+  `SMTP_USER`)
+
+**Important**: All SMTP fields except `SMTP_PORT` and `NOTIFICATION_EMAIL_FROM`
+are required when `SMTP_HOST` is set.
+
+#### SMTP Configuration Examples
+
+**Gmail with App Password**:
+
+```bash
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your-email@gmail.com
+SMTP_PASS=your-app-password  # Generate at https://myaccount.google.com/apppasswords
+NOTIFICATION_EMAIL=alerts@example.com
+NOTIFICATION_EMAIL_FROM=monitoring@yourdomain.com
+```
+
+**Mailtrap (for testing)**:
+
+```bash
+SMTP_HOST=smtp.mailtrap.io
+SMTP_PORT=2525
+SMTP_USER=your-mailtrap-user
+SMTP_PASS=your-mailtrap-pass
+NOTIFICATION_EMAIL=test@example.com
+```
+
+#### Email Notification Behavior
+
+- **DOWN Notification**: Sent when consecutive failures reach
+  `GRACE_PERIOD_FAILURES`
+  - Subject: `[DOWN] Service Name is DOWN`
+  - Includes: Service name, consecutive failure count, error message
+- **UP Notification**: Sent when service recovers after being DOWN
+  - Subject: `[UP] Service Name is UP`
+  - Includes: Service name, number of failed checks during downtime
+- **Email Format**: Both plain text and HTML versions
+  - HTML emails include styled formatting with colors (red for DOWN, green for
+    UP)
+  - Plain text fallback for compatibility
+- **Console Logging**: Always enabled alongside SMTP (for debugging)
+
+#### SMTP Troubleshooting
+
+**Problem: "SMTP configuration incomplete" error**
+
+- Ensure `SMTP_USER`, `SMTP_PASS`, and `NOTIFICATION_EMAIL` are all set when
+  `SMTP_HOST` is provided
+
+**Problem: "SMTP_PORT must be between 1 and 65535" error**
+
+- Verify `SMTP_PORT` is a valid number
+- Common ports: 587 (STARTTLS), 465 (TLS), 25 (unencrypted, not recommended)
+
+**Problem: Authentication failures**
+
+- Use app-specific passwords for Gmail (not your regular password)
+- Check that username/password are correct
+- Verify your SMTP provider allows the authentication method (currently uses
+  PLAIN auth)
+
+**Problem: Emails not being received**
+
+- Check spam/junk folder
+- Verify `NOTIFICATION_EMAIL` is correct
+- Check worker logs for SMTP errors
+- Test SMTP credentials with a different email client first
 
 ## Testing
 
@@ -265,16 +350,19 @@ The mock target worker (`test/fixtures/mock-target.ts`) supports:
 
 ## Development Workflow
 
-### Current Status: Stage 2 Complete ✅
+### Current Status: Stage 3 Complete ✅
 
-Stage 2 implements core monitoring logic with:
+Stage 3 implements email notifications with:
 
 - ✅ HTTP ping monitoring with timeout handling
-- ✅ Grace period logic (console.log only, SMTP in Stage 3)
+- ✅ Grace period logic (only alerts when threshold reached)
+- ✅ **SMTP email notifications** (optional, with styled HTML emails)
+- ✅ **Multiple notification channels** (console + SMTP working simultaneously)
 - ✅ Bearer token authentication on all endpoints
 - ✅ Statistics API with flexible time ranges
 - ✅ Manual trigger endpoint for testing
-- ✅ Comprehensive test suite (21 unit + 15 integration tests passing)
+- ✅ Comprehensive test suite (66 tests passing: 28 config + 21 service + 10
+  integration + more)
 
 ### Running Tests
 
@@ -331,13 +419,15 @@ period threshold:
 
 1. **First failure** (10:00) → consecutiveFailures=1, no alert
 2. **Second failure** (10:01) → consecutiveFailures=2, no alert
-3. **Third failure** (10:02) → consecutiveFailures=3, **console.log alert** (if
-   GRACE_PERIOD_FAILURES=3)
+3. **Third failure** (10:02) → consecutiveFailures=3, **DOWN notification sent**
+   (if GRACE_PERIOD_FAILURES=3)
 4. **Fourth failure** (10:03) → consecutiveFailures=4, no additional alert
-5. **Success** (10:04) → consecutiveFailures=0, **console.log recovery message**
+5. **Success** (10:04) → consecutiveFailures=0, **UP notification sent**
 
-Stage 3 will replace console.log with SMTP email notifications.
+**Key behavior**: UP notifications are only sent if a DOWN notification was
+previously sent. This means short outages that self-recover before reaching the
+grace period threshold are completely ignored (no notifications at all).
 
 ## License
 
-Private project
+MIT License - see [LICENSE](LICENSE) file for details

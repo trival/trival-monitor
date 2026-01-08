@@ -22,10 +22,18 @@ export interface Env {
   // API security
   API_BEARER_TOKEN?: string
 
-  // Optional HTTP config (Stage 5)
+  // Optional HTTP config
   HTTP_HEADERS?: string // JSON string
   HTTP_BODY?: string // JSON string or plain text
   EXPECTED_CODES?: string // comma-separated or range (e.g., "200-299")
+
+  // SMTP configuration
+  SMTP_HOST?: string
+  SMTP_PORT?: string
+  SMTP_USER?: string
+  SMTP_PASS?: string
+  NOTIFICATION_EMAIL?: string
+  NOTIFICATION_EMAIL_FROM?: string
 }
 
 /**
@@ -43,11 +51,24 @@ export interface MonitorConfig {
 }
 
 /**
+ * SMTP configuration for email notifications
+ */
+export interface SMTPConfig {
+  host: string
+  port: number
+  user: string
+  pass: string
+  notificationEmail: string
+  fromEmail: string
+}
+
+/**
  * Application configuration (includes DB and API security)
  */
 export interface AppConfig {
   monitor: MonitorConfig
   apiBearerToken: string
+  smtp?: SMTPConfig // Optional SMTP configuration
 }
 
 /**

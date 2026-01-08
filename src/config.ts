@@ -82,8 +82,34 @@ export function parseConfig(env: Env): AppConfig {
 		body: env.HTTP_BODY,
 	};
 
+	// Parse optional SMTP configuration
+	let smtpConfig = undefined;
+	if (env.SMTP_HOST) {
+		// SMTP_HOST is present, validate all required SMTP fields
+		if (!env.SMTP_USER || !env.SMTP_PASS || !env.NOTIFICATION_EMAIL) {
+			throw new Error(
+				"SMTP configuration incomplete: SMTP_USER, SMTP_PASS, and NOTIFICATION_EMAIL are required when SMTP_HOST is set",
+			);
+		}
+
+		const smtpPort = parseInt(env.SMTP_PORT || "587", 10);
+		if (isNaN(smtpPort) || smtpPort < 1 || smtpPort > 65535) {
+			throw new Error("SMTP_PORT must be between 1 and 65535");
+		}
+
+		smtpConfig = {
+			host: env.SMTP_HOST,
+			port: smtpPort,
+			user: env.SMTP_USER,
+			pass: env.SMTP_PASS,
+			notificationEmail: env.NOTIFICATION_EMAIL,
+			fromEmail: env.NOTIFICATION_EMAIL_FROM || env.SMTP_USER,
+		};
+	}
+
 	return {
 		monitor: monitorConfig,
 		apiBearerToken: env.API_BEARER_TOKEN,
+		smtp: smtpConfig,
 	};
 }

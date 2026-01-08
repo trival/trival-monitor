@@ -144,4 +144,118 @@ describe('parseConfig', () => {
     const config = parseConfig(env)
     expect(config.monitor.body).toBe('{"check":"health"}')
   })
+
+  describe('SMTP configuration', () => {
+    test('returns undefined smtp when SMTP_HOST is not provided', () => {
+      const config = parseConfig(baseEnv)
+      expect(config.smtp).toBeUndefined()
+    })
+
+    test('parses complete SMTP configuration', () => {
+      const env = {
+        ...baseEnv,
+        SMTP_HOST: 'smtp.gmail.com',
+        SMTP_PORT: '587',
+        SMTP_USER: 'user@example.com',
+        SMTP_PASS: 'password123',
+        NOTIFICATION_EMAIL: 'alerts@example.com',
+      }
+      const config = parseConfig(env)
+
+      expect(config.smtp).toBeDefined()
+      expect(config.smtp?.host).toBe('smtp.gmail.com')
+      expect(config.smtp?.port).toBe(587)
+      expect(config.smtp?.user).toBe('user@example.com')
+      expect(config.smtp?.pass).toBe('password123')
+      expect(config.smtp?.notificationEmail).toBe('alerts@example.com')
+      expect(config.smtp?.fromEmail).toBe('user@example.com') // defaults to SMTP_USER
+    })
+
+    test('uses NOTIFICATION_EMAIL_FROM when provided', () => {
+      const env = {
+        ...baseEnv,
+        SMTP_HOST: 'smtp.gmail.com',
+        SMTP_USER: 'user@example.com',
+        SMTP_PASS: 'password123',
+        NOTIFICATION_EMAIL: 'alerts@example.com',
+        NOTIFICATION_EMAIL_FROM: 'monitoring@example.com',
+      }
+      const config = parseConfig(env)
+
+      expect(config.smtp?.fromEmail).toBe('monitoring@example.com')
+    })
+
+    test('defaults SMTP_PORT to 587', () => {
+      const env = {
+        ...baseEnv,
+        SMTP_HOST: 'smtp.gmail.com',
+        SMTP_USER: 'user@example.com',
+        SMTP_PASS: 'password123',
+        NOTIFICATION_EMAIL: 'alerts@example.com',
+      }
+      const config = parseConfig(env)
+
+      expect(config.smtp?.port).toBe(587)
+    })
+
+    test('throws error if SMTP_HOST is set but SMTP_USER is missing', () => {
+      const env = {
+        ...baseEnv,
+        SMTP_HOST: 'smtp.gmail.com',
+        SMTP_PASS: 'password123',
+        NOTIFICATION_EMAIL: 'alerts@example.com',
+      }
+      expect(() => parseConfig(env)).toThrow(
+        'SMTP configuration incomplete: SMTP_USER, SMTP_PASS, and NOTIFICATION_EMAIL are required when SMTP_HOST is set',
+      )
+    })
+
+    test('throws error if SMTP_HOST is set but SMTP_PASS is missing', () => {
+      const env = {
+        ...baseEnv,
+        SMTP_HOST: 'smtp.gmail.com',
+        SMTP_USER: 'user@example.com',
+        NOTIFICATION_EMAIL: 'alerts@example.com',
+      }
+      expect(() => parseConfig(env)).toThrow(
+        'SMTP configuration incomplete: SMTP_USER, SMTP_PASS, and NOTIFICATION_EMAIL are required when SMTP_HOST is set',
+      )
+    })
+
+    test('throws error if SMTP_HOST is set but NOTIFICATION_EMAIL is missing', () => {
+      const env = {
+        ...baseEnv,
+        SMTP_HOST: 'smtp.gmail.com',
+        SMTP_USER: 'user@example.com',
+        SMTP_PASS: 'password123',
+      }
+      expect(() => parseConfig(env)).toThrow(
+        'SMTP configuration incomplete: SMTP_USER, SMTP_PASS, and NOTIFICATION_EMAIL are required when SMTP_HOST is set',
+      )
+    })
+
+    test('throws error for invalid SMTP_PORT', () => {
+      const env = {
+        ...baseEnv,
+        SMTP_HOST: 'smtp.gmail.com',
+        SMTP_PORT: '0',
+        SMTP_USER: 'user@example.com',
+        SMTP_PASS: 'password123',
+        NOTIFICATION_EMAIL: 'alerts@example.com',
+      }
+      expect(() => parseConfig(env)).toThrow('SMTP_PORT must be between 1 and 65535')
+    })
+
+    test('throws error for SMTP_PORT above 65535', () => {
+      const env = {
+        ...baseEnv,
+        SMTP_HOST: 'smtp.gmail.com',
+        SMTP_PORT: '70000',
+        SMTP_USER: 'user@example.com',
+        SMTP_PASS: 'password123',
+        NOTIFICATION_EMAIL: 'alerts@example.com',
+      }
+      expect(() => parseConfig(env)).toThrow('SMTP_PORT must be between 1 and 65535')
+    })
+  })
 })

@@ -1,7 +1,11 @@
 import { parseConfig } from './config'
 import { createDb } from './db/db'
 import { createHTTPMonitor } from './monitor'
-import { createConsoleNotificationHandler } from './notifications'
+import {
+  createConsoleNotificationHandler,
+  createSMTPNotificationHandler,
+  type NotificationHandler,
+} from './notifications'
 import { createHealthCheckD1Repository } from './repository'
 import { createHealthCheckService } from './service'
 import type { AppConfig, Env } from './types'
@@ -23,11 +27,22 @@ function createService(env: Env, config: AppConfig) {
   const db = createDb(env.DB)
   const repo = createHealthCheckD1Repository(db)
   const monitor = createHTTPMonitor(config.monitor)
+
+  // Build notification handlers array
+  const notificationHandlers: NotificationHandler[] = [
+    createConsoleNotificationHandler(), // Always log to console
+  ]
+
+  // Add SMTP handler if configuration is present
+  if (config.smtp) {
+    notificationHandlers.push(createSMTPNotificationHandler(config.smtp))
+  }
+
   const service = createHealthCheckService({
     repo,
     config,
     monitor,
-    notificationHandlers: [createConsoleNotificationHandler()],
+    notificationHandlers,
   })
   return service
 }
