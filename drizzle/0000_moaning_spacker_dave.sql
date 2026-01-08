@@ -2,7 +2,7 @@ CREATE TABLE `health_checks` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
 	`timestamp` integer DEFAULT (unixepoch()) NOT NULL,
 	`up` integer NOT NULL,
-	`ping` integer NOT NULL,
+	`response_time` integer NOT NULL,
 	`err` text,
 	`status_code` integer,
 	`consecutive_failures` integer DEFAULT 0 NOT NULL

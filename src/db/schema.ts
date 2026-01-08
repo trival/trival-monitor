@@ -12,7 +12,7 @@ export const healthCheckSchema = sqliteTable(
       .default(sql`(unixepoch())`),
 
     up: integer('up', { mode: 'boolean' }).notNull(), // true = success, false = failure
-    ping: integer('ping').notNull(), // Response time in milliseconds
+    responseTime: integer('response_time').notNull(), // Response time in milliseconds
 
     // Error tracking
     err: text('err'), // Error message if check failed, null if success

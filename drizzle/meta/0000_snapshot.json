@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "d39e2990-4f46-4f1d-9d6f-c04961cc913a",
+  "id": "8b619f92-e665-4f5e-9d56-97c1567215e4",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "health_checks": {
@@ -29,8 +29,8 @@
           "notNull": true,
           "autoincrement": false
         },
-        "ping": {
-          "name": "ping",
+        "response_time": {
+          "name": "response_time",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,

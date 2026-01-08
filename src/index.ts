@@ -1,9 +1,10 @@
 import { parseConfig } from './config'
 import { createDb } from './db/db'
+import { createHTTPMonitor } from './monitor'
 import { createConsoleNotificationHandler } from './notifications'
 import { createHealthCheckD1Repository } from './repository'
 import { createHealthCheckService } from './service'
-import type { Env } from './types'
+import type { AppConfig, Env } from './types'
 
 /**
  * Helper function to check bearer token authentication
@@ -18,6 +19,19 @@ function checkAuth(request: Request, expectedToken: string): boolean {
   return token === expectedToken
 }
 
+function createService(env: Env, config: AppConfig) {
+  const db = createDb(env.DB)
+  const repo = createHealthCheckD1Repository(db)
+  const monitor = createHTTPMonitor(config.monitor)
+  const service = createHealthCheckService({
+    repo,
+    config,
+    monitor,
+    notificationHandlers: [createConsoleNotificationHandler()],
+  })
+  return service
+}
+
 export default {
   /**
    * Scheduled handler - runs on cron trigger
@@ -29,12 +43,8 @@ export default {
   ): Promise<void> {
     console.log('[SCHEDULED] Running scheduled health check')
 
-    const config = parseConfig(env)
-    const db = createDb(env.DB)
-    const repo = createHealthCheckD1Repository(db)
-    const service = createHealthCheckService(repo, config, [
-      createConsoleNotificationHandler(),
-    ])
+    // Parse config may throw if required vars missing. Crash deliberately in that case.
+    const service = createService(env, parseConfig(env))
 
     // Process health check
     try {
@@ -70,11 +80,7 @@ export default {
       return new Response('Unauthorized', { status: 401 })
     }
 
-    const db = createDb(env.DB)
-    const repo = createHealthCheckD1Repository(db)
-    const service = createHealthCheckService(repo, config, [
-      createConsoleNotificationHandler(),
-    ])
+    const service = createService(env, config)
 
     // GET / - Service info and health check
     if (url.pathname === '/' && request.method === 'GET') {

@@ -17,7 +17,7 @@ export const createHealthCheckD1Repository = (
   repo.save = async (result, timestamp) => {
     await db.insert(healthCheckSchema).values({
       up: result.up,
-      ping: result.ping,
+      responseTime: result.responseTime,
       err: result.err,
       statusCode: result.statusCode,
       consecutiveFailures: result.consecutiveFailures,
@@ -53,7 +53,7 @@ export function createHealthCheckInMemoryRepository(): HealthCheckRepository {
       checks.push({
         id: checks.length + 1,
         up: result.up,
-        ping: result.ping,
+        responseTime: result.responseTime,
         err: result.err,
         statusCode: result.statusCode,
         consecutiveFailures: result.consecutiveFailures,
@@ -97,7 +97,7 @@ export async function testCleanRepository(repo: HealthCheckRepository) {
     await repo.save(
       {
         up: true,
-        ping: 100 + i,
+        responseTime: 100 + i,
         err: null,
         statusCode: 200,
         consecutiveFailures: 0,
@@ -108,7 +108,7 @@ export async function testCleanRepository(repo: HealthCheckRepository) {
   await repo.save(
     {
       up: true,
-      ping: 300,
+      responseTime: 300,
       err: 'timeout',
       statusCode: 0,
       consecutiveFailures: 1,
@@ -118,7 +118,7 @@ export async function testCleanRepository(repo: HealthCheckRepository) {
   await repo.save(
     {
       up: true,
-      ping: 300,
+      responseTime: 300,
       err: 'timeout',
       statusCode: 0,
       consecutiveFailures: 2,
@@ -128,7 +128,7 @@ export async function testCleanRepository(repo: HealthCheckRepository) {
   await repo.save(
     {
       up: true,
-      ping: 100,
+      responseTime: 100,
       err: null,
       statusCode: 200,
       consecutiveFailures: 0,
@@ -139,9 +139,9 @@ export async function testCleanRepository(repo: HealthCheckRepository) {
   // test latest
   checks = await repo.latest(5)
   assert(checks.length === 5, 'Latest: Incorrect number of checks returned')
-  assert(checks[0].ping === 100, 'Latest: Most recent check incorrect')
-  assert(checks[1].ping === 300, 'Latest: Oldest check incorrect')
-  assert(checks[4].ping === 101, 'Latest: Oldest check incorrect')
+  assert(checks[0].responseTime === 100, 'Latest: Most recent check incorrect')
+  assert(checks[1].responseTime === 300, 'Latest: Oldest check incorrect')
+  assert(checks[4].responseTime === 101, 'Latest: Oldest check incorrect')
 
   // test inPeriod
 
@@ -150,6 +150,9 @@ export async function testCleanRepository(repo: HealthCheckRepository) {
     new Date(now.getTime() - 1000),
   )
   assert(checks.length === 4, 'inPeriod: Incorrect number of checks returned')
-  assert(checks[0].ping === 300, 'inPeriod: Most recent check incorrect')
-  assert(checks[3].ping === 101, 'inPeriod: Oldest check incorrect, ')
+  assert(
+    checks[0].responseTime === 300,
+    'inPeriod: Most recent check incorrect',
+  )
+  assert(checks[3].responseTime === 101, 'inPeriod: Oldest check incorrect, ')
 }

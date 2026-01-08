@@ -1,5 +1,5 @@
 import { HealthCheck } from './db/schema'
-import { checkTarget } from './monitor'
+import { Monitor } from './monitor'
 import { NotificationHandler } from './notifications'
 import { HealthCheckRepository } from './repository'
 import { AppConfig, HealthCheckResult, Incident, Stats } from './types'
@@ -10,14 +10,22 @@ export interface HealthCheckService {
   currentIncident(consecutiveFailures: number): Promise<Incident | null>
 }
 
-export const createHealthCheckService = (
-  repo: HealthCheckRepository,
-  config: AppConfig,
-  notificationHandlers: NotificationHandler[],
-): HealthCheckService => {
+interface HealthCheckServiceProps {
+  repo: HealthCheckRepository
+  config: AppConfig
+  monitor: Monitor
+  notificationHandlers: NotificationHandler[]
+}
+
+export const createHealthCheckService = ({
+  repo,
+  config,
+  monitor,
+  notificationHandlers,
+}: HealthCheckServiceProps): HealthCheckService => {
   return {
     async processHeatCheck() {
-      const checkResult = await checkTarget(config.monitor)
+      const checkResult = await monitor.check()
       const consecutiveFailures = await getConsecutiveFailures(repo)
 
       const newConsecutiveFailures = checkResult.up
@@ -82,7 +90,7 @@ export const createHealthCheckService = (
       const uptimePercentage = (successfulChecks / filteredChecks.length) * 100
 
       const totalResponseTime = filteredChecks.reduce(
-        (sum, c) => sum + c.ping,
+        (sum, c) => sum + c.responseTime,
         0,
       )
       const averageResponseTime = Math.round(
