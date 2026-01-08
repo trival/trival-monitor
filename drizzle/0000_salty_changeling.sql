@@ -1,7 +1,3 @@
--- Drop test table (Stage 1 cleanup)
-DROP TABLE IF EXISTS `test`;
-
--- Create health_checks table
 CREATE TABLE `health_checks` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
 	`timestamp` integer DEFAULT (unixepoch()) NOT NULL,

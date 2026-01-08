@@ -1,25 +1,25 @@
 {
-	"name": "trival-monitor",
-	"version": "0.1.0",
-	"type": "module",
-	"private": true,
-	"scripts": {
-		"types": "tsc --noEmit",
-		"test": "bun run test:unit && bun run test:integration",
-		"test:unit": "bun test ./src",
-		"test:integration": "bun test ./test",
-		"db:generate": "drizzle-kit generate",
-		"db:push": "drizzle-kit push",
-		"db:studio": "drizzle-kit studio"
-	},
-	"dependencies": {
-		"drizzle-orm": "0.45.1"
-	},
-	"devDependencies": {
-		"alchemy": "0.83.0",
-		"@cloudflare/workers-types": "4.20260103.0",
-		"@types/bun": "1.1.15",
-		"drizzle-kit": "0.31.8",
-		"typescript": "5.7.3"
-	}
+  "name": "trival-monitor",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "types": "tsc --noEmit",
+    "test": "bun run test:unit && bun run test:integration",
+    "test:unit": "bun test ./src",
+    "test:integration": "bun test ./test",
+    "db:generate": "drizzle-kit generate",
+    "db:studio": "drizzle-kit studio"
+  },
+  "dependencies": {
+    "drizzle-orm": "0.45.1"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "4.20260103.0",
+    "@types/bun": "1.1.15",
+    "alchemy": "0.83.0",
+    "drizzle-kit": "0.31.8",
+    "prettier": "^3.7.4",
+    "typescript": "5.7.3"
+  }
 }
