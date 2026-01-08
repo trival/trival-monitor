@@ -104,7 +104,13 @@ export default {
         const startTime = startParam ? parseInt(startParam, 10) : undefined
         const endTime = endParam ? parseInt(endParam, 10) : undefined
 
-        const stats = await service.getStats(startTime, endTime)
+        const startDate =
+          startTime && !isNaN(startTime) ? new Date(startTime) : undefined
+        const endDate =
+          endTime && !isNaN(endTime) ? new Date(endTime) : undefined
+
+        const stats = await service.getStats(startDate, endDate)
+
         return Response.json(stats)
       } catch (error: any) {
         return Response.json(

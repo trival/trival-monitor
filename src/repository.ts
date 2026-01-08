@@ -5,7 +5,7 @@ import type { HealthCheckResult } from './types'
 
 export interface HealthCheckRepository {
   save(result: HealthCheckResult, timestamp?: Date): Promise<void>
-  inPeriod(startTime: number, endTime: number): Promise<HealthCheck[]>
+  inPeriod(startTime: Date, endTime: Date): Promise<HealthCheck[]>
   latest(limit: number): Promise<HealthCheck[]>
 }
 
@@ -25,14 +25,11 @@ export const createHealthCheckD1Repository = (
     })
   }
 
-  repo.inPeriod = async (
-    startTime: number,
-    endTime: number,
-  ): Promise<HealthCheck[]> => {
+  repo.inPeriod = async (startTime, endTime): Promise<HealthCheck[]> => {
     return await db.query.healthChecks.findMany({
       where: and(
-        gte(healthCheckSchema.timestamp, new Date(startTime)),
-        lte(healthCheckSchema.timestamp, new Date(endTime)),
+        gte(healthCheckSchema.timestamp, startTime),
+        lte(healthCheckSchema.timestamp, endTime),
       ),
       orderBy: [desc(healthCheckSchema.timestamp)],
     })
@@ -46,4 +43,113 @@ export const createHealthCheckD1Repository = (
   }
 
   return repo
+}
+
+export function createHealthCheckInMemoryRepository(): HealthCheckRepository {
+  const checks: HealthCheck[] = []
+
+  return {
+    async save(result, timestamp) {
+      checks.push({
+        id: checks.length + 1,
+        up: result.up,
+        ping: result.ping,
+        err: result.err,
+        statusCode: result.statusCode,
+        consecutiveFailures: result.consecutiveFailures,
+        timestamp: timestamp || new Date(),
+      })
+    },
+
+    async inPeriod(startTime, endTime) {
+      return checks
+        .filter(
+          (check) => check.timestamp >= startTime && check.timestamp <= endTime,
+        )
+        .reverse()
+    },
+
+    async latest(limit) {
+      return checks.slice(-limit).reverse()
+    },
+  }
+}
+
+export async function testCleanRepository(repo: HealthCheckRepository) {
+  function assert(condition: boolean, message: string) {
+    if (!condition) {
+      throw new Error(`Assertion failed: ${message}`)
+    }
+  }
+
+  let checks = await repo.latest(10)
+
+  assert(checks.length === 0, 'Repository is not clean')
+
+  const now = new Date()
+  checks = await repo.inPeriod(new Date(now.getTime() - 10000), now)
+
+  assert(checks.length === 0, 'Repository is not clean')
+
+  // fill test data
+
+  for (let i = 5; i >= 0; i--) {
+    await repo.save(
+      {
+        up: true,
+        ping: 100 + i,
+        err: null,
+        statusCode: 200,
+        consecutiveFailures: 0,
+      },
+      new Date(now.getTime() - (i + 3) * 1000),
+    )
+  }
+  await repo.save(
+    {
+      up: true,
+      ping: 300,
+      err: 'timeout',
+      statusCode: 0,
+      consecutiveFailures: 1,
+    },
+    new Date(now.getTime() - 2 * 1000),
+  )
+  await repo.save(
+    {
+      up: true,
+      ping: 300,
+      err: 'timeout',
+      statusCode: 0,
+      consecutiveFailures: 2,
+    },
+    new Date(now.getTime() - 1 * 1000),
+  )
+  await repo.save(
+    {
+      up: true,
+      ping: 100,
+      err: null,
+      statusCode: 200,
+      consecutiveFailures: 0,
+    },
+    new Date(now.getTime()),
+  )
+
+  // test latest
+  checks = await repo.latest(5)
+  assert(checks.length === 5, 'Latest: Incorrect number of checks returned')
+  assert(checks[0].ping === 100, 'Latest: Most recent check incorrect')
+  assert(checks[1].ping === 300, 'Latest: Oldest check incorrect')
+  assert(checks[4].ping === 101, 'Latest: Oldest check incorrect')
+
+  // test inPeriod
+
+  checks = await repo.inPeriod(
+    new Date(now.getTime() - 4000),
+    new Date(now.getTime() - 1000),
+  )
+  assert(checks.length === 4, 'inPeriod: Incorrect number of checks returned')
+  assert(checks[0].ping === 300, 'inPeriod: Most recent check incorrect')
+  assert(checks[3].ping === 101, 'inPeriod: Oldest check incorrect, ')
 }

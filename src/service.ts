@@ -6,7 +6,7 @@ import { AppConfig, HealthCheckResult, Incident, Stats } from './types'
 
 export interface HealthCheckService {
   processHeatCheck(): Promise<HealthCheckResult>
-  getStats(startTime?: number, endTime?: number): Promise<Stats>
+  getStats(startTime?: Date, endTime?: Date): Promise<Stats>
   currentIncident(consecutiveFailures: number): Promise<Incident | null>
 }
 
@@ -55,10 +55,10 @@ export const createHealthCheckService = (
       return result
     },
 
-    async getStats(startTime?: number, endTime?: number): Promise<Stats> {
-      const now = Date.now()
+    async getStats(startTime, endTime): Promise<Stats> {
+      const now = new Date()
       const end = endTime || now
-      const start = startTime || now - 24 * 60 * 60 * 1000 // 24 hours ago
+      const start = startTime || new Date(now.getTime() - 24 * 60 * 60 * 1000) // 24 hours ago
 
       // Get all checks in time range using both start and end conditions
       const filteredChecks = await repo.inPeriod(start, end)
@@ -111,7 +111,7 @@ export const createHealthCheckService = (
     },
 
     async currentIncident() {
-      return null
+      throw new Error('Not implemented yet: HealthCheckSericurrentIncident()')
     },
   }
 }
