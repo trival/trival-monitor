@@ -20,6 +20,29 @@ Cloudflare Worker with D1 database.
 - **Multiple notification channels** - Console logging + optional SMTP (easily
   extensible)
 
+### Grace Period Behavior
+
+The monitor tracks consecutive failures and only alerts after reaching the grace
+period threshold:
+
+1. **First failure** (10:00) → consecutiveFailures=1, no alert
+2. **Second failure** (10:01) → consecutiveFailures=2, no alert
+3. **Third failure** (10:02) → consecutiveFailures=3, **DOWN notification sent**
+   (if GRACE_PERIOD_FAILURES=3)
+4. **Fourth failure** (10:03) → consecutiveFailures=4, no additional alert
+5. **Success** (10:04) → consecutiveFailures=0, **UP notification sent**
+
+**Key behavior**: UP notifications are only sent if a DOWN notification was
+previously sent. This means short outages that self-recover before reaching the
+grace period threshold are completely ignored (no notifications at all).
+
+### Stats
+
+The `/stats` endpoint provides detailed health check statistics over a specified
+time range (default: last 24 hours). The reported incidents also incluse the
+outages that where shorter than the grace period and did not trigger
+notifications. See documentation below for full details.
+
 ## Tech Stack
 
 - **Runtime**: Cloudflare Workers
@@ -87,7 +110,6 @@ bun run types
 - `bun run test:unit` - Run unit tests only (config parsing)
 - `bun run test:integration` - Run integration tests only
 - `bun run db:generate` - Generate Drizzle migrations
-- `bun run db:push` - Apply migrations to D1 database
 - `bun run db:studio` - Open Drizzle Studio (database GUI)
 
 ## Database Migrations
@@ -118,18 +140,6 @@ When you specify `migrationsDir`, Alchemy will:
 - Migrations are applied during deployment
 - Same workflow for local development and production
 - Integration tests can directly import and run deployments
-
-### Alternative: Manual Migration with drizzle-kit
-
-For deployments without Alchemy, you can still use `drizzle-kit push`:
-
-```bash
-bun run db:push
-```
-
-This applies migrations via Cloudflare's D1 HTTP API, following
-[Drizzle's recommended approach](https://orm.drizzle.team/docs/guides/d1-http-with-drizzle-kit)
-for D1 production deployments.
 
 **References**:
 
@@ -411,22 +421,6 @@ Stage 3 implements email notifications with:
    # Test without auth (should return 401)
    curl http://localhost:1338/
    ```
-
-### Grace Period Behavior
-
-The monitor tracks consecutive failures and only alerts after reaching the grace
-period threshold:
-
-1. **First failure** (10:00) → consecutiveFailures=1, no alert
-2. **Second failure** (10:01) → consecutiveFailures=2, no alert
-3. **Third failure** (10:02) → consecutiveFailures=3, **DOWN notification sent**
-   (if GRACE_PERIOD_FAILURES=3)
-4. **Fourth failure** (10:03) → consecutiveFailures=4, no additional alert
-5. **Success** (10:04) → consecutiveFailures=0, **UP notification sent**
-
-**Key behavior**: UP notifications are only sent if a DOWN notification was
-previously sent. This means short outages that self-recover before reaching the
-grace period threshold are completely ignored (no notifications at all).
 
 ## License
 
