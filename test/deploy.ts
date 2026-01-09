@@ -1,6 +1,6 @@
 import alchemy from 'alchemy'
 import { D1Database, Worker } from 'alchemy/cloudflare'
-import { join } from 'path'
+import { join } from 'node:path'
 
 // Enable local mode for testing
 const app = await alchemy('monitor-test-stage2', {

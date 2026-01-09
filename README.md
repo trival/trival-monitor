@@ -43,41 +43,6 @@ time range (default: last 24 hours). The reported incidents also incluse the
 outages that where shorter than the grace period and did not trigger
 notifications. See documentation below for full details.
 
-## Tech Stack
-
-- **Runtime**: Cloudflare Workers
-- **Database**: D1 with Drizzle ORM
-- **SMTP**: worker-mailer library
-- **Deployment**: Alchemy (TypeScript IaC)
-- **Package Manager**: Bun
-- **Language**: TypeScript
-
-## Project Structure
-
-```
-trival-monitor/
-├── src/                       # Worker code
-│   ├── index.ts              # Entry point (scheduled + fetch handlers)
-│   ├── monitor.ts            # HTTP ping logic
-│   ├── config.ts             # Environment variable parser
-│   ├── types.ts              # TypeScript interfaces
-│   ├── config.test.ts        # Unit tests for config parsing
-│   └── db/
-│       ├── schema.ts         # Drizzle schema definitions
-│       └── queries.ts        # Database query functions
-├── test/                      # Integration tests
-│   ├── deploy.ts             # Test deployment (monitor + mock target)
-│   ├── integration.test.ts   # Comprehensive test suite
-│   └── fixtures/
-│       └── mock-target.ts    # Controllable test fixture worker
-├── deployments/               # Production monitor deployments (empty until Stage 4)
-├── drizzle/                   # Database migrations
-├── package.json
-├── tsconfig.json
-├── drizzle.config.ts
-└── README.md
-```
-
 ## Getting Started
 
 ### Prerequisites
@@ -99,122 +64,6 @@ alchemy login cloudflare
 # export CLOUDFLARE_API_TOKEN=your-token
 # export CLOUDFLARE_ACCOUNT_ID=your-account-id
 
-# Run type checking
-bun run types
-```
-
-## Available Scripts
-
-- `bun run types` - Run TypeScript type checking
-- `bun test` - Run all tests (unit + integration)
-- `bun run test:unit` - Run unit tests only (config parsing)
-- `bun run test:integration` - Run integration tests only
-- `bun run db:generate` - Generate Drizzle migrations
-- `bun run db:studio` - Open Drizzle Studio (database GUI)
-
-## Database Migrations
-
-This project uses Drizzle ORM for database schema management.
-
-### Alchemy-Managed Migrations (Development/Test/Production)
-
-Alchemy provides built-in support for applying Drizzle migrations automatically:
-
-```typescript
-// In deploy.ts
-const db = await D1Database('db', {
-  name: 'monitor_test_d1',
-  migrationsDir: join(projectRoot, 'migrations'),
-})
-```
-
-When you specify `migrationsDir`, Alchemy will:
-
-- Automatically apply all SQL migrations from the directory
-- Track applied migrations in Cloudflare's `d1_migrations` table
-- Work seamlessly in both local mode (`local: true`) and production deployments
-
-**Key Benefits**:
-
-- No manual migration steps needed
-- Migrations are applied during deployment
-- Same workflow for local development and production
-- Integration tests can directly import and run deployments
-
-**References**:
-
-- [Alchemy D1 Database Documentation](https://alchemy.run/providers/cloudflare/d1-database/)
-- [Cloudflare D1 Local Development](https://developers.cloudflare.com/d1/build-with-d1/local-development/)
-
-## API Endpoints
-
-**All endpoints require bearer token authentication via
-`Authorization: Bearer <token>` header.**
-
-### `GET /`
-
-Service status endpoint. Returns monitor information and current status.
-
-**Response:**
-
-```json
-{
-  "service": "Test Service",
-  "target": "http://localhost:1337/",
-  "status": "up",
-  "lastCheck": 1704672000
-}
-```
-
-### `GET /stats`
-
-Get health check statistics. Defaults to 24-hour window.
-
-**Query Parameters:**
-
-- `start` (optional): Unix timestamp for start of time range
-- `end` (optional): Unix timestamp for end of time range
-
-**Response:**
-
-```json
-{
-  "totalChecks": 100,
-  "successfulChecks": 98,
-  "failedChecks": 2,
-  "uptimePercentage": 98.0,
-  "averageResponseTime": 45,
-  "currentStatus": "up",
-  "lastCheckTime": 1704672000,
-  "incidents": [
-    {
-      "startTime": 1704670000,
-      "endTime": 1704670120,
-      "duration": 2,
-      "errorMessage": "Timeout after 5000ms"
-    }
-  ]
-}
-```
-
-### `POST /trigger-check`
-
-Manually trigger a health check (useful for testing without waiting for cron).
-
-**Response:**
-
-```json
-{
-  "success": true,
-  "result": {
-    "up": true,
-    "ping": 42,
-    "err": null,
-    "statusCode": 200,
-    "consecutiveFailures": 0
-  },
-  "message": "Check completed. Status: UP"
-}
 ```
 
 ## Environment Variables
@@ -302,79 +151,177 @@ NOTIFICATION_EMAIL=test@example.com
 - Ensure `SMTP_USER`, `SMTP_PASS`, and `NOTIFICATION_EMAIL` are all set when
   `SMTP_HOST` is provided
 
-**Problem: "SMTP_PORT must be between 1 and 65535" error**
+**Problem: "SMTP_PORT invalid**
 
 - Verify `SMTP_PORT` is a valid number
 - Common ports: 587 (STARTTLS), 465 (TLS), 25 (unencrypted, not recommended)
 
-**Problem: Authentication failures**
+## Worker API Endpoints
 
-- Use app-specific passwords for Gmail (not your regular password)
-- Check that username/password are correct
-- Verify your SMTP provider allows the authentication method (currently uses
-  PLAIN auth)
+**All endpoints require bearer token authentication via
+`Authorization: Bearer <token>` header.**
 
-**Problem: Emails not being received**
+### `GET /`
 
-- Check spam/junk folder
-- Verify `NOTIFICATION_EMAIL` is correct
-- Check worker logs for SMTP errors
-- Test SMTP credentials with a different email client first
+Service status endpoint. Returns monitor information and current status.
 
-## Testing
+**Response:**
 
-### Unit Tests
+```json
+{
+  "service": "Test Service",
+  "target": "http://localhost:1337/",
+  "status": "up",
+  "lastCheck": 1704672000
+}
+```
+
+### `GET /stats`
+
+Get health check statistics. Defaults to 24-hour window.
+
+**Query Parameters:**
+
+- `start` (optional): Unix timestamp for start of time range
+- `end` (optional): Unix timestamp for end of time range
+
+**Response:**
+
+```json
+{
+  "totalChecks": 100,
+  "successfulChecks": 98,
+  "failedChecks": 2,
+  "uptimePercentage": 98.0,
+  "averageResponseTime": 45,
+  "currentStatus": "up",
+  "lastCheckTime": 1704672000,
+  "incidents": [
+    {
+      "startTime": 1704670000,
+      "endTime": 1704670120,
+      "duration": 2,
+      "errorMessage": "Timeout after 5000ms"
+    }
+  ]
+}
+```
+
+### `POST /trigger-check`
+
+Manually trigger a health check (useful for testing without waiting for cron).
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "result": {
+    "up": true,
+    "ping": 42,
+    "err": null,
+    "statusCode": 200,
+    "consecutiveFailures": 0
+  },
+  "message": "Check completed. Status: UP"
+}
+```
+
+## Tech Stack
+
+- **Runtime**: Cloudflare Workers
+- **Database**: D1 with Drizzle ORM
+- **SMTP**: worker-mailer library
+- **Deployment**: Alchemy (TypeScript IaC)
+- **Package Manager**: Bun
+- **Language**: TypeScript
+
+## Project Structure
+
+```
+trival-monitor/
+├── src/                      # Worker code
+│   ├── index.ts              # Entry point (scheduled + fetch handlers)
+│   ├── monitor.ts            # HTTP ping logic
+│   ├── config.ts             # Environment variable parser
+│   ├── types.ts              # TypeScript interfaces
+│   ├── config.test.ts        # Unit tests for config parsing
+│   └── db/
+│       ├── schema.ts         # Drizzle schema definitions
+│       └── queries.ts        # Database query functions
+├── test/                     # Integration tests
+│   ├── deploy.ts             # Test deployment (monitor + mock target)
+│   ├── integration.test.ts   # Comprehensive test suite
+│   └── fixtures/
+│       └── mock-target.ts    # Controllable test fixture worker
+├── deployments/              # Production monitor deployments (empty until Stage 4)
+├── migrations/               # Database migrations (generated by drizzle)
+├── package.json
+├── tsconfig.json
+├── drizzle.config.ts
+└── README.md
+```
+
+## Development
+
+### Available Scripts
+
+- `bun run types` - Run TypeScript type checking
+- `bun test` - Run all tests (unit + integration)
+- `bun run test:unit` - Run unit tests only (config parsing)
+- `bun run test:integration` - Run integration tests only
+- `bun run db:generate` - Generate Drizzle migrations
+- `bun run db:studio` - Open Drizzle Studio (database GUI)
+
+### Alchemy-Managed Migrations (Development/Test/Production)
+
+Alchemy provides built-in support for applying Drizzle migrations automatically:
+
+```typescript
+// In deploy.ts
+const db = await D1Database('db', {
+  name: 'monitor_test_d1',
+  migrationsDir: join(projectRoot, 'migrations'),
+})
+```
+
+When you specify `migrationsDir`, Alchemy will:
+
+- Automatically apply all SQL migrations from the directory
+- Track applied migrations in Cloudflare's `d1_migrations` table
+- Work seamlessly in both local mode (`local: true`) and production deployments
+
+**References**:
+
+- [Alchemy D1 Database Documentation](https://alchemy.run/providers/cloudflare/d1-database/)
+- [Cloudflare D1 Local Development](https://developers.cloudflare.com/d1/build-with-d1/local-development/)
+
+### Testing
+
+#### Unit Tests
 
 ```bash
 bun run test:unit
 ```
 
-Tests configuration parsing, including:
+Tests core business logic like configuration parsing, service, repository
 
-- Expected codes range parsing ("200-299")
-- Environment variable validation
-- Default value handling
-
-### Integration Tests
+#### Integration Tests
 
 ```bash
 bun run test:integration
 ```
 
-Comprehensive test suite with:
-
-- **Mock target worker** - Stateful test fixture with configurable behavior
-- **Bearer token authentication** - Verifies all endpoints are protected
-- **Grace period logic** - Tests consecutive failure tracking and reset
-- **2xx status code acceptance** - Verifies default range (200-299)
-- **Scheduled checks** - Tests automatic cron execution
-- **Stats API** - Validates data structure and custom time ranges
+Comprehensive test suite to simulate real-world scenarios against a local test
+target.
 
 The mock target worker (`test/fixtures/mock-target.ts`) supports:
 
 - **Configuration mode**: `POST /configure` with `{status, delay, message}` to
   set persistent behavior
 - **Query parameter overrides**: One-time control via `?status=X&delay=Y`
-- **In-memory state**: Works in miniflare local mode without external
-  dependencies
 
-## Development Workflow
-
-### Current Status: Stage 3 Complete ✅
-
-Stage 3 implements email notifications with:
-
-- ✅ HTTP ping monitoring with timeout handling
-- ✅ Grace period logic (only alerts when threshold reached)
-- ✅ **SMTP email notifications** (optional, with styled HTML emails)
-- ✅ **Multiple notification channels** (console + SMTP working simultaneously)
-- ✅ Bearer token authentication on all endpoints
-- ✅ Statistics API with flexible time ranges
-- ✅ Manual trigger endpoint for testing
-- ✅ Comprehensive test suite (66 tests passing: 28 config + 21 service + 10
-  integration + more)
-
-### Running Tests
+#### Running Tests
 
 1. **Type checking**:
 
