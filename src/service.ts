@@ -74,9 +74,9 @@ export const createHealthCheckService = ({
       const start = startTime || new Date(now.getTime() - 24 * 60 * 60 * 1000) // 24 hours ago
 
       // Get all checks in time range using both start and end conditions
-      const filteredChecks = await repo.inPeriod(start, end)
+      const checks = await repo.inPeriod(start, end)
 
-      if (filteredChecks.length === 0) {
+      if (checks.length === 0) {
         return {
           totalChecks: 0,
           successfulChecks: 0,
@@ -84,35 +84,31 @@ export const createHealthCheckService = ({
           uptimePercentage: 0,
           averageResponseTime: 0,
           currentStatus: 'down',
-          lastCheckTime: 0,
+          lastCheckTime: '',
           incidents: [],
         }
       }
 
       // Calculate basic stats
-      const successfulChecks = filteredChecks.filter((c) => c.up).length
-      const failedChecks = filteredChecks.length - successfulChecks
-      const uptimePercentage = (successfulChecks / filteredChecks.length) * 100
+      const successfulChecks = checks.filter((c) => c.up).length
+      const failedChecks = checks.length - successfulChecks
+      const uptimePercentage = (successfulChecks / checks.length) * 100
 
-      const totalResponseTime = filteredChecks.reduce(
+      const totalResponseTime = checks.reduce(
         (sum, c) => sum + c.responseTime,
         0,
       )
-      const averageResponseTime = Math.round(
-        totalResponseTime / filteredChecks.length,
-      )
+      const averageResponseTime = Math.round(totalResponseTime / checks.length)
 
       // Current status from most recent check
-      const currentStatus = filteredChecks[0].up ? 'up' : 'down'
-      const lastCheckTime = Math.floor(
-        filteredChecks[0].timestamp.getTime() / 1000,
-      )
+      const currentStatus = checks[0].up ? 'up' : 'down'
+      const lastCheckTime = checks[0].timestamp.toISOString()
 
       // Calculate incidents (periods of consecutive failures)
-      const incidents = calculateIncidents(filteredChecks)
+      const incidents = calculateIncidents(checks)
 
       return {
-        totalChecks: filteredChecks.length,
+        totalChecks: checks.length,
         successfulChecks,
         failedChecks,
         uptimePercentage: Math.round(uptimePercentage * 100) / 100,

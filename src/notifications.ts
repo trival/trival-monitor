@@ -1,4 +1,9 @@
 import { EmailService } from './email'
+import {
+  convertToHtml,
+  formatDownMessage,
+  formatUpMessage,
+} from './email-templates'
 
 export interface NotificationHandler {
   sendDownNotification(
@@ -29,73 +34,6 @@ export function createConsoleNotificationHandler(): NotificationHandler {
       )
     },
   }
-}
-
-/**
- * Format DOWN notification message (plain text)
- */
-function formatDownMessage(
-  serviceName: string,
-  consecutiveFailures: number,
-  lastError: string | null,
-): string {
-  return `Service: ${serviceName}
-
-Status: DOWN
-
-The service has failed ${consecutiveFailures} consecutive health checks.
-
-Last Error: ${lastError || 'Unknown error'}
-
-Please investigate immediately.`
-}
-
-/**
- * Format UP notification message (plain text)
- */
-function formatUpMessage(serviceName: string, downtimeChecks: number): string {
-  return `Service: ${serviceName}
-
-Status: UP
-
-The service has recovered after ${downtimeChecks} failed health checks.
-
-Service is now operational.`
-}
-
-/**
- * Convert plain text message to HTML with basic styling
- */
-function convertToHtml(plainText: string): string {
-  const lines = plainText.split('\n\n')
-  const htmlLines = lines.map((line) => {
-    if (line.startsWith('Status: DOWN')) {
-      return `<p style="color: #d32f2f; font-weight: bold; font-size: 18px;">${line}</p>`
-    }
-    if (line.startsWith('Status: UP')) {
-      return `<p style="color: #388e3c; font-weight: bold; font-size: 18px;">${line}</p>`
-    }
-    return `<p style="margin: 10px 0;">${line.replace(/\n/g, '<br>')}</p>`
-  })
-
-  return `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-</head>
-<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-  <div style="background-color: #f5f5f5; border-left: 4px solid #2196f3; padding: 15px; margin-bottom: 20px;">
-    <h2 style="margin: 0 0 10px 0; color: #2196f3;">Service Health Alert</h2>
-  </div>
-  ${htmlLines.join('\n')}
-  <hr style="margin-top: 30px; border: none; border-top: 1px solid #e0e0e0;">
-  <p style="font-size: 12px; color: #666; margin-top: 15px;">
-    This is an automated notification from Trival Monitor.
-  </p>
-</body>
-</html>`
 }
 
 /**

@@ -92,7 +92,7 @@ export interface Stats {
   uptimePercentage: number // 0-100
   averageResponseTime: number // milliseconds
   currentStatus: 'up' | 'down'
-  lastCheckTime: number // Unix timestamp
+  lastCheckTime: string // ISO string
   incidents: Incident[]
 }
 

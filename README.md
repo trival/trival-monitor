@@ -172,7 +172,7 @@ Service status endpoint. Returns monitor information and current status.
   "service": "Test Service",
   "target": "http://localhost:1337/",
   "status": "up",
-  "lastCheck": 1704672000
+  "lastCheck": "2024-01-08T00:00:00.000Z"
 }
 ```
 
@@ -182,8 +182,8 @@ Get health check statistics. Defaults to 24-hour window.
 
 **Query Parameters:**
 
-- `start` (optional): Unix timestamp for start of time range
-- `end` (optional): Unix timestamp for end of time range
+- `start` (optional): Unix timestamp in seconds for start of time range
+- `end` (optional): Unix timestamp in seconds for end of time range
 
 **Response:**
 
@@ -195,12 +195,12 @@ Get health check statistics. Defaults to 24-hour window.
   "uptimePercentage": 98.0,
   "averageResponseTime": 45,
   "currentStatus": "up",
-  "lastCheckTime": 1704672000,
+  "lastCheckTime": "2024-01-08T00:00:00.000Z",
   "incidents": [
     {
-      "startTime": 1704670000,
-      "endTime": 1704670120,
-      "duration": 2,
+      "startTime": "2024-01-07T23:30:00.000Z",
+      "endTime": "2024-01-07T23:32:00.000Z",
+      "durationMinutes": 2,
       "errorMessage": "Timeout after 5000ms"
     }
   ]
@@ -227,6 +227,42 @@ Manually trigger a health check (useful for testing without waiting for cron).
 }
 ```
 
+### `POST /send-stats-email`
+
+Test email configuration by sending a stats report via email. Requires SMTP to
+be configured.
+
+**Query Parameters:**
+
+- `start` (optional): Unix timestamp in seconds for start of time range
+- `end` (optional): Unix timestamp in seconds for end of time range
+
+**Response (Success):**
+
+```json
+{
+  "success": true,
+  "message": "Stats email sent successfully"
+}
+```
+
+**Response (SMTP Not Configured):**
+
+```json
+{
+  "error": "Email is not configured"
+}
+```
+
+**Notes:**
+
+- Email will be sent to the configured `NOTIFICATION_EMAIL` address
+- Subject: `[STATS] Service Name - Health Statistics Report`
+- Includes: Service status, uptime percentage, response times, and incident
+  history
+- Uses the same time range parameters as `/stats` endpoint (defaults to last 24
+  hours)
+
 ## Tech Stack
 
 - **Runtime**: Cloudflare Workers
@@ -245,10 +281,15 @@ trival-monitor/
 │   ├── monitor.ts            # HTTP ping logic
 │   ├── config.ts             # Environment variable parser
 │   ├── types.ts              # TypeScript interfaces
+│   ├── email.ts              # Email service wrapper
+│   ├── email-templates.ts    # Email formatting and templates
+│   ├── notifications.ts      # Notification handlers (console, SMTP)
+│   ├── service.ts            # Health check business logic
+│   ├── repository.ts         # Database repository layer
 │   ├── config.test.ts        # Unit tests for config parsing
 │   └── db/
 │       ├── schema.ts         # Drizzle schema definitions
-│       └── queries.ts        # Database query functions
+│       └── db.ts             # Database client
 ├── test/                     # Integration tests
 │   ├── deploy.ts             # Test deployment (monitor + mock target)
 │   ├── integration.test.ts   # Comprehensive test suite
@@ -356,14 +397,24 @@ The mock target worker (`test/fixtures/mock-target.ts`) supports:
    curl -H "Authorization: Bearer test-token-12345" http://localhost:1338/stats
 
    # Custom time range (last hour)
-   START=$(($(date +%s) - 3600))000
-   END=$(date +%s)000
+   START=$(($(date +%s) - 3600))
+   END=$(date +%s)
    curl -H "Authorization: Bearer test-token-12345" \
      "http://localhost:1338/stats?start=$START&end=$END"
 
    # Manual health check
    curl -X POST -H "Authorization: Bearer test-token-12345" \
      http://localhost:1338/trigger-check
+
+   # Send stats email (requires SMTP configuration)
+   curl -X POST -H "Authorization: Bearer test-token-12345" \
+     http://localhost:1338/send-stats-email
+
+   # Send stats email with custom time range
+   START=$(($(date +%s) - 3600))
+   END=$(date +%s)
+   curl -X POST -H "Authorization: Bearer test-token-12345" \
+     "http://localhost:1338/send-stats-email?start=$START&end=$END"
 
    # Test without auth (should return 401)
    curl http://localhost:1338/

@@ -315,7 +315,7 @@ describe('HealthCheckService', () => {
       expect(stats.uptimePercentage).toBe(0)
       expect(stats.averageResponseTime).toBe(0)
       expect(stats.currentStatus).toBe('down')
-      expect(stats.lastCheckTime).toBe(0)
+      expect(stats.lastCheckTime).toBe('')
       expect(stats.incidents).toEqual([])
     })
 
@@ -331,7 +331,7 @@ describe('HealthCheckService', () => {
       expect(stats.uptimePercentage).toBe(100)
       expect(stats.averageResponseTime).toBe(150)
       expect(stats.currentStatus).toBe('up')
-      expect(stats.lastCheckTime).toBeGreaterThan(0)
+      expect(stats.lastCheckTime.length).toBeGreaterThan(0)
       expect(stats.incidents).toEqual([])
     })
 
