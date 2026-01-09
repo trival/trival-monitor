@@ -1,5 +1,6 @@
 import { parseConfig } from './config'
 import { createDb } from './db/db'
+import { createEmailService } from './email'
 import { createHTTPMonitor } from './monitor'
 import {
   createConsoleNotificationHandler,
@@ -35,7 +36,9 @@ function createService(env: Env, config: AppConfig) {
 
   // Add SMTP handler if configuration is present
   if (config.smtp) {
-    notificationHandlers.push(createSMTPNotificationHandler(config.smtp))
+    notificationHandlers.push(
+      createSMTPNotificationHandler(createEmailService(config.smtp)),
+    )
   }
 
   const service = createHealthCheckService({
@@ -56,8 +59,6 @@ export default {
     env: Env,
     _ctx: ExecutionContext,
   ): Promise<void> {
-    console.log('[SCHEDULED] Running scheduled health check')
-
     // Parse config may throw if required vars missing. Crash deliberately in that case.
     const service = createService(env, parseConfig(env))
 
@@ -75,8 +76,6 @@ export default {
    * ALL endpoints require bearer token authentication
    */
   async fetch(request: Request, env: Env): Promise<Response> {
-    console.log(`[HTTP] ${request.method} ${request.url}`)
-
     const url = new URL(request.url)
 
     // Parse config (may throw if required vars missing)

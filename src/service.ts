@@ -142,24 +142,24 @@ function calculateIncidents(checks: HealthCheck[]): Incident[] {
   const chronologicalChecks = [...checks].reverse()
 
   for (const check of chronologicalChecks) {
-    const checkTime = Math.floor(check.timestamp.getTime() / 1000)
-
     if (!check.up) {
       // Start new incident if not already tracking one
       if (!currentIncident) {
         currentIncident = {
-          startTime: checkTime,
+          startTime: check.timestamp.toISOString(),
           endTime: null,
-          duration: 0,
+          durationMinutes: 0,
           errorMessage: check.err || 'Unknown error',
         }
       }
     } else {
       // End current incident if one exists
       if (currentIncident) {
-        currentIncident.endTime = checkTime
-        currentIncident.duration = Math.round(
-          (currentIncident.endTime - currentIncident.startTime) / 60,
+        currentIncident.endTime = check.timestamp.toISOString()
+        currentIncident.durationMinutes = Math.round(
+          (check.timestamp.getTime() -
+            new Date(currentIncident.startTime).getTime()) /
+            (60 * 1000),
         )
         incidents.push(currentIncident)
         currentIncident = null
@@ -169,9 +169,9 @@ function calculateIncidents(checks: HealthCheck[]): Incident[] {
 
   // If incident is still ongoing, add it
   if (currentIncident) {
-    const now = Math.floor(Date.now() / 1000)
-    currentIncident.duration = Math.round(
-      (now - currentIncident.startTime) / 60,
+    currentIncident.durationMinutes = Math.round(
+      (Date.now() - new Date(currentIncident.startTime).getTime()) /
+        (60 * 1000),
     )
     incidents.push(currentIncident)
   }

@@ -100,8 +100,8 @@ export interface Stats {
  * An incident (period of consecutive failures)
  */
 export interface Incident {
-  startTime: number // Unix timestamp
-  endTime: number | null // null if still ongoing
-  duration: number // minutes
+  startTime: string // ISO string
+  endTime: string | null // null if still ongoing
+  durationMinutes: number // minutes
   errorMessage: string
 }

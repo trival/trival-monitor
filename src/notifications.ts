@@ -1,5 +1,4 @@
-import { WorkerMailer } from 'worker-mailer'
-import type { SMTPConfig } from './types'
+import { EmailService } from './email'
 
 export interface NotificationHandler {
   sendDownNotification(
@@ -100,43 +99,10 @@ function convertToHtml(plainText: string): string {
 }
 
 /**
- * Send email via SMTP using worker-mailer
- */
-async function sendEmail(
-  config: SMTPConfig,
-  subject: string,
-  plainText: string,
-  html: string,
-): Promise<void> {
-  await WorkerMailer.send(
-    {
-      host: config.host,
-      port: config.port,
-      credentials: {
-        username: config.user,
-        password: config.pass,
-      },
-      authType: 'plain',
-      secure: config.port === 465, // Use TLS for port 465
-    },
-    {
-      from: {
-        name: 'Trival Monitor',
-        email: config.fromEmail,
-      },
-      to: config.notificationEmail,
-      subject,
-      text: plainText,
-      html,
-    },
-  )
-}
-
-/**
  * Create SMTP notification handler using worker-mailer
  */
 export function createSMTPNotificationHandler(
-  config: SMTPConfig,
+  emailService: EmailService,
 ): NotificationHandler {
   return {
     async sendDownNotification(
@@ -152,8 +118,7 @@ export function createSMTPNotificationHandler(
       const html = convertToHtml(plainText)
 
       try {
-        await sendEmail(
-          config,
+        await emailService.send(
           `[DOWN] ${serviceName} is DOWN`,
           plainText,
           html,
@@ -172,7 +137,7 @@ export function createSMTPNotificationHandler(
       const html = convertToHtml(plainText)
 
       try {
-        await sendEmail(config, `[UP] ${serviceName} is UP`, plainText, html)
+        await emailService.send(`[UP] ${serviceName} is UP`, plainText, html)
       } catch (error) {
         console.error('[SMTP] Failed to send UP notification:', error)
         throw error
